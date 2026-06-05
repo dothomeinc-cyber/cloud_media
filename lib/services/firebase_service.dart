@@ -54,7 +54,8 @@ class FirebaseService {
         .where('deletedAt', isNull: true)
         .orderBy('createdAt', descending: true)
         .limit(limit);
-    if (type != null) query = query.where('type', isEqualTo: type.string);
+    if (type != null) {
+      query = query.where('type', isEqualTo: type.string);
     if (startDate != null) query = query.where('createdAt',
         isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
     if (endDate != null) query = query.where('createdAt',

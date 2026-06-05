@@ -29,7 +29,9 @@ class CompressionService {
         format: CompressFormat.webp,
       );
 
-      if (result == null) return filePath;
+      if (result == null) {
+      return filePath;
+    }
 
       final orig = await file.length();
       final comp = await result.length();
