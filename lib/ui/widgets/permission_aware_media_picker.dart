@@ -1,0 +1,122 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/cloud_media_type.dart';
+import '../../services/permission_service.dart';
+import '../../services/upload_service.dart';
+import '../../utils/error_handler.dart';
+import '../screens/media_picker_screen.dart';
+
+/// Wraps any child widget so tapping it triggers the full
+/// permission-request → media-picker flow.
+class PermissionAwareMediaPicker extends ConsumerStatefulWidget {
+  const PermissionAwareMediaPicker({
+    super.key,
+    required this.mediaType,
+    required this.maxCount,
+    required this.onMediaSelected,
+    required this.child,
+    this.permissionTitle,
+    this.permissionMessage,
+  });
+
+  final CloudMediaType mediaType;
+  final int maxCount;
+
+  /// Typed as [List<PickedFile>] — matches what [MediaPickerScreen] returns.
+  final Function(List<PickedFile>) onMediaSelected;
+
+  final Widget child;
+  final String? permissionTitle;
+  final String? permissionMessage;
+
+  @override
+  ConsumerState<PermissionAwareMediaPicker> createState() =>
+      _PermissionAwareMediaPickerState();
+}
+
+class _PermissionAwareMediaPickerState
+    extends ConsumerState<PermissionAwareMediaPicker> {
+  bool _isRequesting = false;
+
+  Future<void> _handlePress() async {
+    if (_isRequesting) return;
+    setState(() => _isRequesting = true);
+
+    try {
+      // Request permissions first
+      switch (widget.mediaType) {
+        case CloudMediaType.image:
+        case CloudMediaType.video:
+          await PermissionService.requestMediaPermissions(context);
+          break;
+        case CloudMediaType.audio:
+          await PermissionService.requestMicrophonePermission(context);
+          break;
+        case CloudMediaType.file:
+          await PermissionService.requestStoragePermission(context);
+          break;
+      }
+
+      if (!mounted) return;
+
+      // Navigate to picker
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MediaPickerScreen(
+            mediaType: widget.mediaType,
+            maxCount: widget.maxCount,
+            onMediaSelected: widget.onMediaSelected,
+          ),
+        ),
+      );
+    } on CloudMediaPermissionPermanentlyDeniedException {
+      if (mounted) {
+        _showSnack(
+          widget.permissionMessage ??
+              'Permission permanently denied. Please enable it in Settings.',
+        );
+        await PermissionService.openSettings();
+      }
+    } on CloudMediaPermissionDeniedException {
+      if (mounted) {
+        _showSnack(
+          widget.permissionMessage ??
+              'Permission denied. Please grant access to continue.',
+        );
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isRequesting = false);
+    }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handlePress,
+      child: AbsorbPointer(
+        absorbing: _isRequesting,
+        child: Stack(
+          children: [
+            widget.child,
+            if (_isRequesting)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black12,
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
