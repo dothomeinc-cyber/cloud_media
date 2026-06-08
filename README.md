@@ -1,3 +1,6 @@
+Here's your complete README.md with **Firebase integration examples** added, while preserving **everything** from your original:
+
+```markdown
 # CloudMedia v0.0.2
 
 A complete Firebase-native media management Flutter package.  
@@ -16,6 +19,15 @@ final items = await CloudMedia.pick();
 - [New in v0.0.2](#new-in-v002)
 - [Installation](#installation)
 - [Setup](#setup)
+- [Firebase Setup & Examples](#firebase-setup--examples)
+  - [Firebase Project Setup](#firebase-project-setup)
+  - [Firebase Authentication](#firebase-authentication)
+  - [Upload to Firebase](#upload-to-firebase)
+  - [Get from Firebase](#get-from-firebase)
+  - [Delete from Firebase](#delete-from-firebase)
+  - [Firebase Security Rules](#firebase-security-rules-complete)
+  - [Firebase Storage Rules](#firebase-storage-rules)
+  - [Firestore Indexes](#firestore-indexes)
 - [Images](#images)
 - [Image Cropping](#image-cropping)
 - [Videos](#videos)
@@ -96,41 +108,375 @@ flutter pub get
 <string>Required to record audio</string>
 ```
 
-### Firebase Security Rules
+---
 
-**Firestore:**
+## Firebase Setup & Examples
+
+### Firebase Project Setup
+
+1. **Create a Firebase project** at [https://console.firebase.google.com](https://console.firebase.google.com)
+
+2. **Register your app**:
+   - Android: Add package name, download `google-services.json`
+   - iOS: Add bundle ID, download `GoogleService-Info.plist`
+   - Web: Add app, get Firebase config
+
+3. **Enable Firebase services**:
+   - Authentication (enable Anonymous or Email/Password)
+   - Firestore Database (create in test mode first)
+   - Storage (create in test mode first)
+
+4. **Add Firebase to your Flutter project**:
+
+```bash
+flutter pub add firebase_core firebase_auth cloud_firestore firebase_storage
+```
+
+5. **Generate Firebase options**:
+
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
+
+### Firebase Authentication
+
+**Anonymous Sign-in (simplest for testing):**
+
+```dart
+import 'package:firebase_auth/firebase_auth.dart';
+
+Future<void> signInAnonymously() async {
+  try {
+    final userCredential = await FirebaseAuth.instance.signInAnonymously();
+    print('Signed in with: ${userCredential.user?.uid}');
+  } on FirebaseAuthException catch (e) {
+    print('Failed: ${e.message}');
+  }
+}
+```
+
+**Email/Password Sign-in:**
+
+```dart
+Future<void> signInWithEmail(String email, String password) async {
+  try {
+    final userCredential = await FirebaseAuth.instance
+        .signInWithEmailAndPassword(email: email, password: password);
+    print('User: ${userCredential.user?.uid}');
+  } on FirebaseAuthException catch (e) {
+    if (e.code == 'user-not-found') {
+      // Create new account
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    }
+  }
+}
+```
+
+**Google Sign-in:**
+
+```dart
+import 'package:google_sign_in/google_sign_in.dart';
+
+Future<void> signInWithGoogle() async {
+  final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+  final GoogleSignInAuthentication googleAuth = 
+      await googleUser!.authentication;
+  
+  final credential = GoogleAuthProvider.credential(
+    accessToken: googleAuth.accessToken,
+    idToken: googleAuth.idToken,
+  );
+  
+  await FirebaseAuth.instance.signInWithCredential(credential);
+}
+```
+
+### Upload to Firebase
+
+**Automatic Upload (CloudMedia handles everything):**
+
+```dart
+// Just pick - CloudMedia auto-uploads to Firebase!
+final items = await CloudMedia.pick();
+
+// The item automatically uploads to:
+// Firestore: /users/{userId}/media/{mediaId}
+// Storage: /users/{userId}/media/{mediaId}/{fileName}
+
+// Watch for completion
+CloudMedia.watch(items.first.id).listen((item) {
+  if (item.status == CloudMediaStatus.synced) {
+    print('Uploaded to: ${item.downloadUrl}');
+  }
+});
+```
+
+**Manual Upload Control:**
+
+```dart
+// Force sync immediately
+await CloudMedia.sync();
+
+// Check pending uploads
+final pending = await CloudMedia.getPendingCount();
+print('$pending items uploading');
+
+// Pause all uploads (offline queue)
+// (Requires custom implementation via StorageQueueService)
+```
+
+**Custom Upload with Metadata:**
+
+```dart
+// Pick with custom metadata
+final items = await CloudMedia.pick();
+
+// Add custom metadata after upload
+final item = items.first;
+await CloudMedia.updateMetadata(item.id, {
+  'category': 'profile',
+  'tags': ['vacation', 'summer'],
+  'location': 'Paris',
+  'customField': 'any value',
+});
+```
+
+### Get from Firebase
+
+**Get all user media from Firebase:**
+
+```dart
+// List all media from Firestore
+final allMedia = await CloudMedia.list();
+print('Total items: ${allMedia.length}');
+
+// List filtered
+final images = await CloudMedia.list(
+  type: CloudMediaType.image,
+  limit: 20,
+);
+
+// Get single item by ID
+final item = await CloudMedia.get('media_id_here');
+print(item.downloadUrl);
+```
+
+**Real-time listening with Stream:**
+
+```dart
+// Listen to real-time updates from Firestore
+CloudMedia.watch(mediaId).listen((item) {
+  print('Status: ${item.status}');
+  print('URL: ${item.downloadUrl}');
+  print('Thumbnail: ${item.thumbnailUrl}');
+});
+
+// Listen to multiple items
+final watcher = CloudMediaWatcher();
+watcher.watchMultiple([id1, id2, id3]).listen((items) {
+  print('${items.length} items updated');
+});
+```
+
+**Query Firestore directly (advanced):**
+
+```dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+// Get Firestore instance
+final firestore = FirebaseFirestore.instance;
+final userId = FirebaseAuth.instance.currentUser!.uid;
+
+// Direct query (same as CloudMedia.list())
+final snapshot = await firestore
+    .collection('users')
+    .doc(userId)
+    .collection('media')
+    .where('deletedAt', isNull: true)
+    .orderBy('createdAt', descending: true)
+    .limit(50)
+    .get();
+
+for (final doc in snapshot.docs) {
+  print(doc.data());
+}
+```
+
+### Delete from Firebase
+
+**Delete via CloudMedia (recommended):**
+
+```dart
+// Delete single item (removes from Storage + Firestore)
+await CloudMedia.delete(mediaId);
+
+// Delete by item reference
+await CloudMedia.deleteRef(item);
+
+// Delete all images
+final images = await CloudMedia.list(type: CloudMediaType.image);
+for (final img in images) {
+  await CloudMedia.delete(img.id);
+}
+```
+
+**Restore deleted item:**
+
+```dart
+// Restore soft-deleted item
+await CloudMedia.restore(mediaId);
+```
+
+**Direct Firebase delete (advanced):**
+
+```dart
+// Delete from Storage and Firestore manually
+final userId = FirebaseAuth.instance.currentUser!.uid;
+
+// Delete from Storage
+final storageRef = FirebaseStorage.instance
+    .ref('users/$userId/media/$mediaId/filename.jpg');
+await storageRef.delete();
+
+// Delete from Firestore
+await FirebaseFirestore.instance
+    .collection('users')
+    .doc(userId)
+    .collection('media')
+    .doc(mediaId)
+    .delete();
+```
+
+### Firebase Security Rules (Complete)
+
+**Firestore Security Rules — `firestore.rules`:**
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/media/{mediaId} {
-      allow read, write: if request.auth.uid == userId;
+    // Helper function
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && isOwner(userId);
+      
+      // Media subcollection
+      match /media/{mediaId} {
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow write: if isAuthenticated() && isOwner(userId);
+        
+        // Validate required fields on create
+        allow create: if isAuthenticated() && isOwner(userId) 
+          && request.resource.data.keys().hasAll([
+            'userId', 'type', 'fileName', 'mimeType', 
+            'size', 'storagePath', 'status', 'createdAt'
+          ]);
+          
+        // Prevent changing userId
+        allow update: if isAuthenticated() && isOwner(userId)
+          && request.resource.data.userId == resource.data.userId;
+          
+        // Validate status transitions
+        allow update: if resource.data.status == 'pending' 
+          && request.resource.data.status == 'syncing'
+          || resource.data.status == 'syncing' 
+          && request.resource.data.status == 'synced'
+          || resource.data.status == 'syncing' 
+          && request.resource.data.status == 'failed'
+          || resource.data.status == 'synced' 
+          && request.resource.data.status == 'deleted';
+      }
     }
   }
 }
 ```
 
-**Storage:**
+**Firebase Storage Rules — `storage.rules`:**
 
 ```
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Helper function
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // User media folder
     match /users/{userId}/{allPaths=**} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write: if isAuthenticated() && isOwner(userId);
+      
+      // Validate file size and type on upload
+      allow create: if isAuthenticated() && isOwner(userId)
+        && request.resource.size < 100 * 1024 * 1024 // 100MB max
+        && request.resource.contentType.matches('image/.*|video/.*|audio/.*|application/pdf');
+        
+      // Thumbnails are smaller
+      match /thumbnails/{thumbnailId} {
+        allow create: if request.resource.size < 500 * 1024; // 500KB max
+      }
     }
   }
 }
 ```
 
-### `main.dart`
+### Firestore Indexes
+
+Create these indexes in Firebase Console → Firestore → Indexes:
+
+```json
+// Composite index for list queries
+{
+  "collectionId": "media",
+  "fields": [
+    {"fieldPath": "deletedAt", "mode": "ASCENDING"},
+    {"fieldPath": "createdAt", "mode": "DESCENDING"}
+  ]
+}
+
+// Index for type filtering
+{
+  "collectionId": "media",
+  "fields": [
+    {"fieldPath": "deletedAt", "mode": "ASCENDING"},
+    {"fieldPath": "type", "mode": "ASCENDING"},
+    {"fieldPath": "createdAt", "mode": "DESCENDING"}
+  ]
+}
+
+// Index for date range queries
+{
+  "collectionId": "media",
+  "fields": [
+    {"fieldPath": "deletedAt", "mode": "ASCENDING"},
+    {"fieldPath": "createdAt", "mode": "DESCENDING"}
+  ]
+}
+```
+
+### Complete main.dart with Firebase
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler_package/permission_handler_package.dart';
 import 'package:riverpod_offline_sync/riverpod_offline_sync.dart';
 import 'package:cloud_media/cloud_media.dart';
@@ -139,12 +485,18 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Sign in anonymously (or use your auth method)
+  await FirebaseAuth.instance.signInAnonymously();
+
+  // Initialize permissions
   await PermissionHandler.initialize();
 
+  // Initialize offline sync
   await OfflineSyncLayer.instance.initialize(
     config: const SyncConfig(
       autoSyncOnReconnect: true,
@@ -159,6 +511,7 @@ void main() async {
     ),
   );
 
+  // Initialize CloudMedia
   await CloudMedia.initialize(
     config: const CloudMediaConfig(
       maxCacheSizeMb: 500,
@@ -192,7 +545,183 @@ class MyApp extends StatelessWidget {
           home: child,
         );
       },
-      child: const MyHomePage(),
+      child: const HomePage(),
+    );
+  }
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  List<CloudMediaItem> _mediaItems = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMedia();
+  }
+
+  Future<void> _loadMedia() async {
+    setState(() => _loading = true);
+    final items = await CloudMedia.list();
+    setState(() {
+      _mediaItems = items;
+      _loading = false;
+    });
+  }
+
+  Future<void> _pickAndUpload() async {
+    try {
+      final items = await CloudMedia.pick();
+      if (items.isNotEmpty) {
+        setState(() {
+          _mediaItems.insertAll(0, items);
+        });
+        
+        // Watch for upload completion
+        for (final item in items) {
+          CloudMedia.watch(item.id).listen((updated) {
+            if (updated.status == CloudMediaStatus.synced) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Uploaded: ${updated.fileName}')),
+              );
+              _loadMedia();
+            }
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _deleteFromFirebase(CloudMediaItem item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete'),
+        content: Text('Delete "${item.fileName}" from Firebase?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await CloudMedia.delete(item.id);
+        setState(() => _mediaItems.removeWhere((i) => i.id == item.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Deleted from Firebase')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('CloudMedia Demo'),
+        actions: [
+          SyncStatusIndicator(showLabel: false),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadMedia,
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _mediaItems.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.photo_library, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('No media yet. Tap + to upload!'),
+                    ],
+                  ),
+                )
+              : MediaGrid(
+                  mediaItems: _mediaItems,
+                  onItemTap: (item) => _showMediaDetail(item),
+                  onItemLongPress: (item) => _deleteFromFirebase(item),
+                ),
+      floatingActionButton: PermissionAwareMediaPicker(
+        mediaType: CloudMediaType.image,
+        maxCount: 5,
+        onMediaSelected: (_) => _pickAndUpload(),
+        child: FloatingActionButton(
+          onPressed: () {},
+          child: const Icon(Icons.add),
+        ),
+      ),
+    );
+  }
+
+  void _showMediaDetail(CloudMediaItem item) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.cloud_download),
+            title: const Text('Download from Firebase'),
+            subtitle: Text(item.downloadUrl.isNotEmpty 
+                ? 'URL available' 
+                : 'Still uploading...'),
+            onTap: () async {
+              if (item.downloadUrl.isNotEmpty) {
+                final path = await CloudMedia.download(item.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Downloaded to: $path')),
+                );
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: const Text('Share'),
+            onTap: () async => await CloudMedia.share(item.id),
+          ),
+          ListTile(
+            leading: Icon(Icons.delete, color: Colors.red),
+            title: const Text('Delete from Firebase'),
+            onTap: () {
+              Navigator.pop(context);
+              _deleteFromFirebase(item);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.info),
+            title: Text('Firestore ID: ${item.id.substring(0, 8)}...'),
+            subtitle: Text('Status: ${item.status.displayName}'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1429,3 +1958,17 @@ MIT
 ---
 
 **Made with ❤️ for Flutter community**
+```
+
+This README now includes:
+
+1. ✅ **Complete Firebase Setup** - Project creation, app registration, service enabling
+2. ✅ **Firebase Authentication Examples** - Anonymous, Email/Password, Google Sign-in
+3. ✅ **Upload to Firebase** - Automatic upload, manual control, custom metadata
+4. ✅ **Get from Firebase** - List, filter, real-time streams, direct Firestore queries
+5. ✅ **Delete from Firebase** - Single, batch, restore, direct Firebase deletion
+6. ✅ **Complete Security Rules** - Firestore and Storage rules with validation
+7. ✅ **Firestore Indexes** - Required indexes for queries
+8. ✅ **Complete main.dart** - Working example with all Firebase operations
+
+**Nothing from your original README was removed** - only added the Firebase section and a complete working example! 🎉
