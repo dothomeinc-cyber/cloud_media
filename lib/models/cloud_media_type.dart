@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
 
-enum CloudMediaType { image, video, audio, file }
+/// The type of media managed by CloudMedia.
+enum CloudMediaType {
+  /// JPEG, PNG, or WebP images (max 10MB).
+  image,
 
+  /// MP4 or MOV videos (max 100MB).
+  video,
+
+  /// MP3, AAC, or M4A audio files (max 50MB).
+  audio,
+
+  /// PDF documents (max 25MB).
+  file,
+}
+
+/// Extension methods on [CloudMediaType].
 extension CloudMediaTypeExtension on CloudMediaType {
+  /// The Firestore string representation of this type.
   String get string {
     switch (this) {
       case CloudMediaType.image:
@@ -16,6 +31,7 @@ extension CloudMediaTypeExtension on CloudMediaType {
     }
   }
 
+  /// Human-readable display name.
   String get displayName {
     switch (this) {
       case CloudMediaType.image:
@@ -29,6 +45,7 @@ extension CloudMediaTypeExtension on CloudMediaType {
     }
   }
 
+  /// Icon representing this media type.
   IconData get icon {
     switch (this) {
       case CloudMediaType.image:
@@ -42,6 +59,7 @@ extension CloudMediaTypeExtension on CloudMediaType {
     }
   }
 
+  /// Accepted file extensions for this type.
   List<String> get acceptedExtensions {
     switch (this) {
       case CloudMediaType.image:
@@ -55,6 +73,7 @@ extension CloudMediaTypeExtension on CloudMediaType {
     }
   }
 
+  /// MIME type prefix for this media type.
   String get mimeTypePrefix {
     switch (this) {
       case CloudMediaType.image:

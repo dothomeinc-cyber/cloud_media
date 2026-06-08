@@ -6,6 +6,7 @@ import 'package:flutter_video_thumbnail_plus/flutter_video_thumbnail_plus.dart';
 import '../models/cloud_media_config.dart';
 import '../models/cloud_media_type.dart';
 import '../utils/logger.dart';
+//import 'package:flutter_video_thumbnail_plus/flutter_video_thumbnail_plus.dart';
 
 class ThumbnailService {
   ThumbnailService({required this.config});
@@ -28,12 +29,14 @@ class ThumbnailService {
           return null;
       }
     } catch (e, st) {
-      CloudLogger.error('Thumbnail generation failed', error: e, stackTrace: st);
+      CloudLogger.error('Thumbnail generation failed',
+          error: e, stackTrace: st);
       return null;
     }
   }
 
-  Future<String?> _imageThumbnail(String filePath, int size) async {
+  Future<String?> _imageThumbnail(
+      String filePath, int size) async {
     final file = File(filePath);
     if (!await file.exists()) return null;
 
@@ -41,25 +44,29 @@ class ThumbnailService {
     final image = img.decodeImage(bytes);
     if (image == null) return null;
 
-    final thumb = img.copyResizeCropSquare(image, size: size);
+    final thumb =
+        img.copyResizeCropSquare(image, size: size);
 
     final tempDir = await getTemporaryDirectory();
     final thumbPath =
         '${tempDir.path}/cm_thumb_${DateTime.now().millisecondsSinceEpoch}.webp';
 
-    final thumbBytes = img.encodeNamedImage(thumbPath, thumb) ??
-        img.encodeJpg(thumb, quality: 80);
+    final thumbBytes =
+        img.encodeNamedImage(thumbPath, thumb) ??
+            img.encodeJpg(thumb, quality: 80);
     await File(thumbPath).writeAsBytes(thumbBytes);
 
     CloudLogger.debug('Image thumbnail: $thumbPath');
     return thumbPath;
   }
 
-  Future<String?> _videoThumbnail(String filePath, int size) async {
+  Future<String?> _videoThumbnail(
+      String filePath, int size) async {
     try {
       final tempDir = await getTemporaryDirectory();
 
-      final thumbPath = await FlutterVideoThumbnailPlus.thumbnailFile(
+      final thumbPath =
+          await FlutterVideoThumbnailPlus.thumbnailFile(
         video: filePath,
         thumbnailPath: tempDir.path,
         imageFormat: ImageFormat.webp,
@@ -70,24 +77,29 @@ class ThumbnailService {
       );
 
       if (thumbPath == null) {
-        CloudLogger.warning('Video thumbnail returned null: $filePath');
+        CloudLogger.warning(
+            'Video thumbnail returned null: $filePath');
         return null;
       }
 
       CloudLogger.debug('Video thumbnail: $thumbPath');
       return thumbPath;
     } catch (e, st) {
-      CloudLogger.error('Video thumbnail failed', error: e, stackTrace: st);
+      CloudLogger.error('Video thumbnail failed',
+          error: e, stackTrace: st);
       return null;
     }
   }
 
-  Future<Uint8List?> generateThumbnailBytes(Uint8List bytes, int size) async {
+  Future<Uint8List?> generateThumbnailBytes(
+      Uint8List bytes, int size) async {
     try {
       final image = img.decodeImage(bytes);
       if (image == null) return null;
-      final thumb = img.copyResizeCropSquare(image, size: size);
-      return Uint8List.fromList(img.encodeJpg(thumb, quality: 80));
+      final thumb =
+          img.copyResizeCropSquare(image, size: size);
+      return Uint8List.fromList(
+          img.encodeJpg(thumb, quality: 80));
     } catch (e) {
       CloudLogger.error('Thumbnail bytes failed', error: e);
       return null;

@@ -12,12 +12,21 @@ import '../models/cloud_media_type.dart';
 import '../utils/error_handler.dart';
 import '../utils/logger.dart';
 
+/// Service that handles all Firebase Firestore and Storage operations.
+///
+/// Requires Firebase to be initialized by the host app before use.
+/// Uses [FirebaseAuth] to identify the current user.
 class FirebaseService {
+  /// Creates a [FirebaseService] with the given [config].
   FirebaseService({required this.config});
+
+  /// The configuration for this service.
   final CloudMediaConfig config;
+
   late FirebaseFirestore _firestore;
   late FirebaseStorage _storage;
 
+  /// Initialize Firebase instances. Must be called before any other method.
   Future<void> initialize() async {
     _firestore = FirebaseFirestore.instance;
     _storage = config.customStorageBucket != null
@@ -26,6 +35,7 @@ class FirebaseService {
     CloudLogger.info('FirebaseService ready. User: ${currentUser?.uid}');
   }
 
+  /// The currently authenticated Firebase user, or null if not signed in.
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
   String get _uid {
@@ -37,50 +47,78 @@ class FirebaseService {
     return uid;
   }
 
+  /// Fetch a single media item by [mediaId].
+  ///
+  /// Throws [CloudMediaNotFoundException] if the item does not exist.
   Future<CloudMediaItem> getMedia(String mediaId) async {
-    final doc = await _firestore.doc(FirestorePaths.mediaDoc(_uid, mediaId)).get();
+    final doc =
+        await _firestore.doc(FirestorePaths.mediaDoc(_uid, mediaId)).get();
     if (!doc.exists) throw CloudMediaNotFoundException('Not found: $mediaId');
     return CloudMediaItem.fromFirestore(doc);
   }
 
+  /// Alias for [listMedia] with no filters.
   Future<List<CloudMediaItem>> getUserMedia() => listMedia();
 
+  /// List media for the current user with optional filters.
+  ///
+  /// Supports filtering by [type], [startDate], [endDate], and pagination
+  /// via [limit] and [offset].
   Future<List<CloudMediaItem>> listMedia({
-    CloudMediaType? type, int limit = 50, int offset = 0,
-    DateTime? startDate, DateTime? endDate, String? searchQuery,
+    CloudMediaType? type,
+    int limit = 50,
+    int offset = 0,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? searchQuery,
   }) async {
     Query query = _firestore
         .collection(FirestorePaths.userMedia(_uid))
         .where('deletedAt', isNull: true)
         .orderBy('createdAt', descending: true)
         .limit(limit);
+
     if (type != null) {
       query = query.where('type', isEqualTo: type.string);
-    if (startDate != null) query = query.where('createdAt',
-        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-    if (endDate != null) query = query.where('createdAt',
-        isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+    }
+    if (startDate != null) {
+      query = query.where('createdAt',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+    }
+    if (endDate != null) {
+      query = query.where('createdAt',
+          isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+    }
+
     final snap = await query.get();
     return snap.docs.map(CloudMediaItem.fromFirestore).toList();
   }
 
+  /// Watch real-time updates for a media item.
   Stream<CloudMediaItem> watchMedia(String mediaId) => _firestore
       .doc(FirestorePaths.mediaDoc(_uid, mediaId))
       .snapshots()
       .map(CloudMediaItem.fromFirestore);
 
+  /// Soft-delete a media item by setting [deletedAt] timestamp.
   Future<void> deleteMedia(String mediaId) async {
     await _firestore.doc(FirestorePaths.mediaDoc(_uid, mediaId)).update({
-      'deletedAt': Timestamp.now(), 'status': CloudMediaStatus.deleted.name,
+      'deletedAt': Timestamp.now(),
+      'status': CloudMediaStatus.deleted.name,
     });
   }
 
+  /// Restore a soft-deleted media item.
   Future<void> restoreMedia(String mediaId) async {
     await _firestore.doc(FirestorePaths.mediaDoc(_uid, mediaId)).update({
-      'deletedAt': null, 'status': CloudMediaStatus.synced.name,
+      'deletedAt': null,
+      'status': CloudMediaStatus.synced.name,
     });
   }
 
+  /// Download a media item to the device's temp directory.
+  ///
+  /// Returns the local file path.
   Future<String> downloadMedia(String mediaId) async {
     final media = await getMedia(mediaId);
     if (media.downloadUrl.isEmpty) {
@@ -92,6 +130,7 @@ class FirebaseService {
     return filePath;
   }
 
+  /// Share a media item using the platform share sheet.
   Future<void> shareMedia(CloudMediaItem media) async {
     if (media.downloadUrl.isNotEmpty) {
       await SharePlus.instance.share(

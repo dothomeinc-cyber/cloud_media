@@ -30,8 +30,8 @@ class CompressionService {
       );
 
       if (result == null) {
-      return filePath;
-    }
+        return filePath;
+      }
 
       final orig = await file.length();
       final comp = await result.length();
@@ -59,8 +59,9 @@ class CompressionService {
 
   Future<String> compress(
       String filePath, String mimeType) async {
-    if (mimeType.startsWith('image/'))
+    if (mimeType.startsWith('image/')) {
       return compressImage(filePath);
+    }
     return filePath;
   }
 

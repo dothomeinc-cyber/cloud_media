@@ -1,66 +1,65 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
+import 'package:image_background_remover/image_background_remover.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../models/cloud_media_item.dart';
 import '../../utils/logger.dart';
 
-// ─── Provider contract ────────────────────────────────────────────────────────
-
+/// Abstract contract for background removal providers.
 abstract class BackgroundRemovalProvider {
+  /// Called once when the provider is first used.
+  Future<void> initialize();
+
+  /// Remove the background from [image] and return the processed [File].
   Future<File> removeBackground(File image);
+
+  /// Release resources. Call when the provider is no longer needed.
+  void dispose();
 }
 
-// ─── Default on-device provider ──────────────────────────────────────────────
+/// Default on-device provider using image_background_remover ONNX model.
+///
+/// Initializes the ONNX session once and reuses it across multiple calls.
+/// Call [dispose] only when you are completely done with background removal
+/// (e.g. when the feature screen is permanently closed).
+class LocalBackgroundRemovalProvider
+    implements BackgroundRemovalProvider {
+  bool _initialized = false;
 
-class LocalBackgroundRemovalProvider implements BackgroundRemovalProvider {
+  @override
+  Future<void> initialize() async {
+    if (_initialized) return;
+    await BackgroundRemover.instance.initializeOrt();
+    _initialized = true;
+    CloudLogger.info(
+        'BackgroundRemover ONNX session initialized');
+  }
+
   @override
   Future<File> removeBackground(File imageFile) async {
+    // Initialize once — reuse session for subsequent calls
+    await initialize();
+
     try {
       final bytes = await imageFile.readAsBytes();
-      final original = img.decodeImage(bytes);
-      if (original == null) return imageFile;
 
-      final rgba = original.convert(numChannels: 4);
-      final w = rgba.width;
-      final h = rgba.height;
+      // removeBg returns ui.Image with transparent background
+      final ui.Image resultImage =
+          await BackgroundRemover.instance.removeBg(bytes);
 
-      final corners = [
-        rgba.getPixel(0, 0),
-        rgba.getPixel(w - 1, 0),
-        rgba.getPixel(0, h - 1),
-        rgba.getPixel(w - 1, h - 1),
-      ];
+      final byteData = await resultImage.toByteData(
+          format: ui.ImageByteFormat.png);
+      resultImage.dispose();
 
-      int bgR = 0, bgG = 0, bgB = 0;
-      for (final p in corners) {
-        bgR += p.r.toInt();
-        bgG += p.g.toInt();
-        bgB += p.b.toInt();
-      }
-      bgR ~/= 4;
-      bgG ~/= 4;
-      bgB ~/= 4;
-
-      const int tolerance = 30;
-
-      for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-          final pixel = rgba.getPixel(x, y);
-          final r = pixel.r.toInt();
-          final g = pixel.g.toInt();
-          final b = pixel.b.toInt();
-
-          if ((r - bgR).abs() < tolerance &&
-              (g - bgG).abs() < tolerance &&
-              (b - bgB).abs() < tolerance) {
-            rgba.setPixelRgba(x, y, r, g, b, 0);
-          }
-        }
+      if (byteData == null) {
+        CloudLogger.warning(
+            'BackgroundRemover: byteData null, using original');
+        return imageFile;
       }
 
-      final pngBytes = img.encodePng(rgba);
+      final pngBytes = byteData.buffer.asUint8List();
       final tempDir = await getTemporaryDirectory();
       final outputPath =
           '${tempDir.path}/cm_bg_removed_${DateTime.now().millisecondsSinceEpoch}.png';
@@ -70,14 +69,27 @@ class LocalBackgroundRemovalProvider implements BackgroundRemovalProvider {
       CloudLogger.debug('Background removed: $outputPath');
       return outputFile;
     } catch (e, st) {
-      CloudLogger.error('Background removal failed', error: e, stackTrace: st);
-      return imageFile;
+      CloudLogger.error('Background removal failed',
+          error: e, stackTrace: st);
+      return imageFile; // graceful fallback
     }
+    // NOTE: No dispose() here — session is reused across calls
+  }
+
+  @override
+  void dispose() {
+    if (!_initialized) return;
+    BackgroundRemover.instance.dispose();
+    _initialized = false;
+    CloudLogger.info(
+        'BackgroundRemover ONNX session disposed');
   }
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
-
+/// Background removal screen with 30s timeout, retry, use-original fallback.
+///
+/// Manages the provider lifecycle — initializes on first use and disposes
+/// only when the screen is permanently closed.
 class BackgroundRemovalScreen extends StatefulWidget {
   const BackgroundRemovalScreen({
     super.key,
@@ -88,6 +100,8 @@ class BackgroundRemovalScreen extends StatefulWidget {
 
   final CloudMediaItem media;
   final void Function(String processedPath) onComplete;
+
+  /// Optional custom provider. Defaults to [LocalBackgroundRemovalProvider].
   final BackgroundRemovalProvider? provider;
 
   @override
@@ -95,7 +109,9 @@ class BackgroundRemovalScreen extends StatefulWidget {
       _BackgroundRemovalScreenState();
 }
 
-class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
+class _BackgroundRemovalScreenState
+    extends State<BackgroundRemovalScreen> {
+  late final BackgroundRemovalProvider _provider;
   _Status _status = _Status.processing;
   String? _errorMessage;
   Timer? _timeout;
@@ -106,12 +122,17 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
   @override
   void initState() {
     super.initState();
+    // Use provided provider or create default — owned by this screen
+    _provider =
+        widget.provider ?? LocalBackgroundRemovalProvider();
     _startRemoval();
   }
 
   @override
   void dispose() {
     _timeout?.cancel();
+    // Dispose ONNX session here — screen is permanently closing
+    _provider.dispose();
     super.dispose();
   }
 
@@ -126,7 +147,8 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
       if (mounted && _status == _Status.processing) {
         setState(() {
           _status = _Status.timedOut;
-          _errorMessage = 'Background removal timed out after 30 seconds.';
+          _errorMessage =
+              'Background removal timed out after 30 seconds.';
         });
       }
     });
@@ -135,10 +157,12 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
 
     try {
       final localPath = widget.media.localPath ?? '';
-      if (localPath.isEmpty) throw Exception('No local file path available.');
+      if (localPath.isEmpty)
+        throw Exception('No local file path available.');
 
-      final provider = widget.provider ?? LocalBackgroundRemovalProvider();
-      final result = await provider.removeBackground(File(localPath));
+      // Session is initialized once inside provider and reused on retry
+      final result =
+          await _provider.removeBackground(File(localPath));
 
       _timeout?.cancel();
 
@@ -147,7 +171,8 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
           _status = _Status.done;
           _progress = 1.0;
         });
-        await Future.delayed(const Duration(milliseconds: 800));
+        await Future.delayed(
+            const Duration(milliseconds: 800));
         if (mounted) widget.onComplete(result.path);
       }
     } catch (e) {
@@ -212,21 +237,21 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
                   width: 80,
                   height: 80,
                   child: CircularProgressIndicator(
-                    value: _progress,
-                    strokeWidth: 6,
-                  ),
+                      value: _progress, strokeWidth: 6),
                 ),
                 Text(
                   '${(_progress * 100).toStringAsFixed(0)}%',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14),
                 ),
               ],
             ),
             const SizedBox(height: 24),
             const Text('Removing background…',
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w600)),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             const Text('This may take up to 30 seconds.',
                 style: TextStyle(color: Colors.grey)),
@@ -242,11 +267,13 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
         return const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 80),
+            Icon(Icons.check_circle,
+                color: Colors.green, size: 80),
             SizedBox(height: 16),
             Text('Background removed!',
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w600)),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600)),
           ],
         );
 
@@ -267,7 +294,8 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
             const Text(
               'You can retry or continue with the original image.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(
+                  color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 28),
             Row(
@@ -280,6 +308,7 @@ class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
                 ),
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
+                  // Retry reuses the existing session — no re-init needed
                   onPressed: _startRemoval,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
