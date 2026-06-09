@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_background_remover/image_background_remover.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../models/cloud_media_item.dart';
@@ -9,21 +10,12 @@ import '../../utils/logger.dart';
 
 /// Abstract contract for background removal providers.
 abstract class BackgroundRemovalProvider {
-  /// Called once when the provider is first used.
   Future<void> initialize();
-
-  /// Remove the background from [image] and return the processed [File].
   Future<File> removeBackground(File image);
-
-  /// Release resources. Call when the provider is no longer needed.
   void dispose();
 }
 
 /// Default on-device provider using image_background_remover ONNX model.
-///
-/// Initializes the ONNX session once and reuses it across multiple calls.
-/// Call [dispose] only when you are completely done with background removal
-/// (e.g. when the feature screen is permanently closed).
 class LocalBackgroundRemovalProvider
     implements BackgroundRemovalProvider {
   bool _initialized = false;
@@ -39,13 +31,10 @@ class LocalBackgroundRemovalProvider
 
   @override
   Future<File> removeBackground(File imageFile) async {
-    // Initialize once — reuse session for subsequent calls
     await initialize();
 
     try {
       final bytes = await imageFile.readAsBytes();
-
-      // removeBg returns ui.Image with transparent background
       final ui.Image resultImage =
           await BackgroundRemover.instance.removeBg(bytes);
 
@@ -71,9 +60,8 @@ class LocalBackgroundRemovalProvider
     } catch (e, st) {
       CloudLogger.error('Background removal failed',
           error: e, stackTrace: st);
-      return imageFile; // graceful fallback
+      return imageFile;
     }
-    // NOTE: No dispose() here — session is reused across calls
   }
 
   @override
@@ -87,9 +75,6 @@ class LocalBackgroundRemovalProvider
 }
 
 /// Background removal screen with 30s timeout, retry, use-original fallback.
-///
-/// Manages the provider lifecycle — initializes on first use and disposes
-/// only when the screen is permanently closed.
 class BackgroundRemovalScreen extends StatefulWidget {
   const BackgroundRemovalScreen({
     super.key,
@@ -100,8 +85,6 @@ class BackgroundRemovalScreen extends StatefulWidget {
 
   final CloudMediaItem media;
   final void Function(String processedPath) onComplete;
-
-  /// Optional custom provider. Defaults to [LocalBackgroundRemovalProvider].
   final BackgroundRemovalProvider? provider;
 
   @override
@@ -122,7 +105,6 @@ class _BackgroundRemovalScreenState
   @override
   void initState() {
     super.initState();
-    // Use provided provider or create default — owned by this screen
     _provider =
         widget.provider ?? LocalBackgroundRemovalProvider();
     _startRemoval();
@@ -131,7 +113,6 @@ class _BackgroundRemovalScreenState
   @override
   void dispose() {
     _timeout?.cancel();
-    // Dispose ONNX session here — screen is permanently closing
     _provider.dispose();
     super.dispose();
   }
@@ -158,9 +139,9 @@ class _BackgroundRemovalScreenState
     try {
       final localPath = widget.media.localPath ?? '';
       if (localPath.isEmpty)
+        // ignore: curly_braces_in_flow_control_structures
         throw Exception('No local file path available.');
 
-      // Session is initialized once inside provider and reused on retry
       final result =
           await _provider.removeBackground(File(localPath));
 
@@ -208,16 +189,17 @@ class _BackgroundRemovalScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Remove Background'),
+        title: Text('Remove Background',
+            style: TextStyle(fontSize: 18.sp)),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: Icon(Icons.close, size: 24.r),
           onPressed: _useOriginal,
           tooltip: 'Use original',
         ),
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(32.w),
           child: _buildBody(),
         ),
       ),
@@ -234,46 +216,54 @@ class _BackgroundRemovalScreenState
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 80,
-                  height: 80,
+                  width: 80.r,
+                  height: 80.r,
                   child: CircularProgressIndicator(
-                      value: _progress, strokeWidth: 6),
+                      value: _progress, strokeWidth: 6.w),
                 ),
                 Text(
                   '${(_progress * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14),
+                      fontSize: 14.sp),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            const Text('Removing background…',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            const Text('This may take up to 30 seconds.',
-                style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 24),
+            SizedBox(height: 24.h),
+            Text(
+              'Removing background…',
+              style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'This may take up to 30 seconds.',
+              style: TextStyle(
+                  color: Colors.grey, fontSize: 14.sp),
+            ),
+            SizedBox(height: 24.h),
             TextButton(
               onPressed: _useOriginal,
-              child: const Text('Cancel — use original'),
+              child: Text('Cancel — use original',
+                  style: TextStyle(fontSize: 14.sp)),
             ),
           ],
         );
 
       case _Status.done:
-        return const Column(
+        return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.check_circle,
-                color: Colors.green, size: 80),
-            SizedBox(height: 16),
-            Text('Background removed!',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600)),
+                color: Colors.green, size: 80.r),
+            SizedBox(height: 16.h),
+            Text(
+              'Background removed!',
+              style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w600),
+            ),
           ],
         );
 
@@ -282,36 +272,37 @@ class _BackgroundRemovalScreenState
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.warning_amber_rounded,
-                color: Colors.orange, size: 80),
-            const SizedBox(height: 16),
+            Icon(Icons.warning_amber_rounded,
+                color: Colors.orange, size: 80.r),
+            SizedBox(height: 16.h),
             Text(
               _errorMessage ?? 'Something went wrong.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 15),
+              style: TextStyle(fontSize: 15.sp),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8.h),
+            Text(
               'You can retry or continue with the original image.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Colors.grey, fontSize: 13),
+                  color: Colors.grey, fontSize: 13.sp),
             ),
-            const SizedBox(height: 28),
+            SizedBox(height: 28.h),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 OutlinedButton.icon(
                   onPressed: _useOriginal,
-                  icon: const Icon(Icons.image),
-                  label: const Text('Use Original'),
+                  icon: Icon(Icons.image, size: 18.r),
+                  label: Text('Use Original',
+                      style: TextStyle(fontSize: 14.sp)),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: 16.w),
                 ElevatedButton.icon(
-                  // Retry reuses the existing session — no re-init needed
                   onPressed: _startRemoval,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  icon: Icon(Icons.refresh, size: 18.r),
+                  label: Text('Retry',
+                      style: TextStyle(fontSize: 14.sp)),
                 ),
               ],
             ),

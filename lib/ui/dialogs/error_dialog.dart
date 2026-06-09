@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ErrorDialog extends StatelessWidget {
   const ErrorDialog({
@@ -23,7 +24,10 @@ class ErrorDialog extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (_) => ErrorDialog(
-          title: title, message: message, onRetry: onRetry, onDismiss: onDismiss),
+          title: title,
+          message: message,
+          onRetry: onRetry,
+          onDismiss: onDismiss),
     );
   }
 
@@ -31,8 +35,8 @@ class ErrorDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Row(children: [
-        const Icon(Icons.error, color: Colors.red, size: 28),
-        const SizedBox(width: 8),
+        Icon(Icons.error, color: Colors.red, size: 28.r),
+        SizedBox(width: 8.w),
         Expanded(child: Text(title)),
       ]),
       content: Text(message),
@@ -42,7 +46,8 @@ class ErrorDialog extends StatelessWidget {
             Navigator.pop(context);
             onDismiss?.call();
           },
-          child: const Text('Dismiss'),
+          child: Text('Dismiss',
+              style: TextStyle(fontSize: 14.sp)),
         ),
         if (onRetry != null)
           ElevatedButton(
@@ -50,7 +55,8 @@ class ErrorDialog extends StatelessWidget {
               Navigator.pop(context);
               onRetry!();
             },
-            child: const Text('Retry'),
+            child: Text('Retry',
+                style: TextStyle(fontSize: 14.sp)),
           ),
       ],
     );

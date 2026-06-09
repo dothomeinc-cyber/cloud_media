@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_item.dart';
 import '../../utils/file_utils.dart';
 
@@ -39,21 +40,31 @@ class CloudFile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: Text(_icon, style: const TextStyle(fontSize: 32)),
-        title: Text(media.fileName,
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(FileUtils.formatFileSize(media.size)),
+        leading:
+            Text(_icon, style: TextStyle(fontSize: 32.sp)),
+        title: Text(
+          media.fileName,
+          style: TextStyle(fontSize: 14.sp),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          FileUtils.formatFileSize(media.size),
+          style: TextStyle(fontSize: 12.sp),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-                icon: const Icon(Icons.download),
-                onPressed: onDownload,
-                tooltip: 'Download'),
+              icon: Icon(Icons.download, size: 20.r),
+              onPressed: onDownload,
+              tooltip: 'Download',
+            ),
             IconButton(
-                icon: const Icon(Icons.share),
-                onPressed: onShare,
-                tooltip: 'Share'),
+              icon: Icon(Icons.share, size: 20.r),
+              onPressed: onShare,
+              tooltip: 'Share',
+            ),
           ],
         ),
       ),

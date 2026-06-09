@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_config.dart';
 import '../../models/cloud_media_type.dart';
 import '../../services/permission_service.dart';
@@ -20,10 +21,12 @@ class MediaPickerScreen extends StatefulWidget {
   final CloudMediaConfig config;
 
   @override
-  State<MediaPickerScreen> createState() => _MediaPickerScreenState();
+  State<MediaPickerScreen> createState() =>
+      _MediaPickerScreenState();
 }
 
-class _MediaPickerScreenState extends State<MediaPickerScreen> {
+class _MediaPickerScreenState
+    extends State<MediaPickerScreen> {
   late final UploadService _uploadService;
   String _statusText = 'Initializing...';
 
@@ -35,23 +38,28 @@ class _MediaPickerScreenState extends State<MediaPickerScreen> {
   }
 
   Future<void> _checkPermissionsAndPick() async {
-    setState(() => _statusText = 'Requesting permissions...');
+    setState(
+        () => _statusText = 'Requesting permissions...');
 
     try {
       switch (widget.mediaType) {
         case CloudMediaType.image:
         case CloudMediaType.video:
-          await PermissionService.requestMediaPermissions(context);
+          await PermissionService.requestMediaPermissions(
+              context);
           break;
         case CloudMediaType.audio:
-          await PermissionService.requestMicrophonePermission(context);
+          await PermissionService
+              .requestMicrophonePermission(context);
           break;
         case CloudMediaType.file:
-          await PermissionService.requestStoragePermission(context);
+          await PermissionService.requestStoragePermission(
+              context);
           break;
       }
 
-      setState(() => _statusText = 'Opening media picker...');
+      setState(
+          () => _statusText = 'Opening media picker...');
 
       final picked = await _uploadService.pickMedia(
         type: widget.mediaType,
@@ -82,8 +90,9 @@ class _MediaPickerScreenState extends State<MediaPickerScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(_statusText),
+            SizedBox(height: 16.h),
+            Text(_statusText,
+                style: TextStyle(fontSize: 14.sp)),
           ],
         ),
       ),

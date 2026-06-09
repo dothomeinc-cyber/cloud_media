@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_type.dart';
 import '../../services/permission_service.dart';
 import '../../services/upload_service.dart';
 import '../../utils/error_handler.dart';
 import '../screens/media_picker_screen.dart';
 
-/// Wraps any child widget so tapping it triggers the full
-/// permission-request → media-picker flow.
-class PermissionAwareMediaPicker extends ConsumerStatefulWidget {
+class PermissionAwareMediaPicker
+    extends ConsumerStatefulWidget {
   const PermissionAwareMediaPicker({
     super.key,
     required this.mediaType,
@@ -21,10 +21,7 @@ class PermissionAwareMediaPicker extends ConsumerStatefulWidget {
 
   final CloudMediaType mediaType;
   final int maxCount;
-
-  /// Typed as [List<PickedFile>] — matches what [MediaPickerScreen] returns.
   final Function(List<PickedFile>) onMediaSelected;
-
   final Widget child;
   final String? permissionTitle;
   final String? permissionMessage;
@@ -43,23 +40,24 @@ class _PermissionAwareMediaPickerState
     setState(() => _isRequesting = true);
 
     try {
-      // Request permissions first
       switch (widget.mediaType) {
         case CloudMediaType.image:
         case CloudMediaType.video:
-          await PermissionService.requestMediaPermissions(context);
+          await PermissionService.requestMediaPermissions(
+              context);
           break;
         case CloudMediaType.audio:
-          await PermissionService.requestMicrophonePermission(context);
+          await PermissionService
+              .requestMicrophonePermission(context);
           break;
         case CloudMediaType.file:
-          await PermissionService.requestStoragePermission(context);
+          await PermissionService.requestStoragePermission(
+              context);
           break;
       }
 
       if (!mounted) return;
 
-      // Navigate to picker
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -94,7 +92,11 @@ class _PermissionAwareMediaPickerState
 
   void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+      SnackBar(
+        content: Text(message,
+            style: TextStyle(fontSize: 14.sp)),
+        backgroundColor: Colors.red,
+      ),
     );
   }
 
@@ -111,7 +113,8 @@ class _PermissionAwareMediaPickerState
               Positioned.fill(
                 child: Container(
                   color: Colors.black12,
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: const Center(
+                      child: CircularProgressIndicator()),
                 ),
               ),
           ],

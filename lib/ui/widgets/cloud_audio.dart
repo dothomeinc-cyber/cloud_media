@@ -1,5 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_item.dart';
 import '../../utils/date_formatter.dart';
 
@@ -36,12 +37,15 @@ class _CloudAudioState extends State<CloudAudio> {
     if (url == null || url.isEmpty) return;
 
     await _player.setSourceUrl(url);
-    _player.onDurationChanged
-        .listen((d) { if (mounted) setState(() => _duration = d); });
-    _player.onPositionChanged
-        .listen((p) { if (mounted) setState(() => _position = p); });
-    _player.onPlayerComplete
-        .listen((_) { if (mounted) setState(() => _isPlaying = false); });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isPlaying = false);
+    });
 
     if (widget.autoPlay) {
       await _player.resume();
@@ -56,7 +60,9 @@ class _CloudAudioState extends State<CloudAudio> {
   }
 
   Future<void> _toggle() async {
-    _isPlaying ? await _player.pause() : await _player.resume();
+    _isPlaying
+        ? await _player.pause()
+        : await _player.resume();
     setState(() => _isPlaying = !_isPlaying);
   }
 
@@ -64,36 +70,53 @@ class _CloudAudioState extends State<CloudAudio> {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.w),
         child: Row(
           children: [
             IconButton(
-              icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-              iconSize: 32,
+              icon: Icon(_isPlaying
+                  ? Icons.pause
+                  : Icons.play_arrow),
+              iconSize: 32.r,
               onPressed: _toggle,
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16.w),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  Text(widget.media.fileName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    widget.media.fileName,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.sp),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   Slider(
                     value: _position.inSeconds
                         .toDouble()
-                        .clamp(0, _duration.inSeconds.toDouble()),
+                        .clamp(0,
+                            _duration.inSeconds.toDouble()),
                     max: _duration.inSeconds.toDouble(),
-                    onChanged: (v) =>
-                        _player.seek(Duration(seconds: v.toInt())),
+                    onChanged: (v) => _player
+                        .seek(Duration(seconds: v.toInt())),
                   ),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(DateFormatter.formatDuration(_position)),
-                      Text(DateFormatter.formatDuration(_duration)),
+                      Text(
+                          DateFormatter.formatDuration(
+                              _position),
+                          style:
+                              TextStyle(fontSize: 12.sp)),
+                      Text(
+                          DateFormatter.formatDuration(
+                              _duration),
+                          style:
+                              TextStyle(fontSize: 12.sp)),
                     ],
                   ),
                 ],

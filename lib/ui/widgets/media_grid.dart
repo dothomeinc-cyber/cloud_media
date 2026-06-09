@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_item.dart';
 import '../../models/cloud_media_status.dart';
 import '../../models/cloud_media_type.dart';
@@ -26,10 +27,11 @@ class MediaGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate:
+          SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        crossAxisSpacing: crossAxisSpacing,
-        mainAxisSpacing: mainAxisSpacing,
+        crossAxisSpacing: crossAxisSpacing.w,
+        mainAxisSpacing: mainAxisSpacing.h,
       ),
       itemCount: mediaItems.length,
       itemBuilder: (_, index) {
@@ -42,16 +44,20 @@ class MediaGrid extends StatelessWidget {
             children: [
               _tile(media),
               if (media.type == CloudMediaType.video)
-                const Positioned(
-                  bottom: 8,
-                  right: 8,
-                  child: Icon(Icons.play_circle_filled,
-                      color: Colors.white, size: 28),
+                Positioned(
+                  bottom: 8.h,
+                  right: 8.w,
+                  child: Icon(
+                    Icons.play_circle_filled,
+                    color: Colors.white,
+                    size: 28.r,
+                  ),
                 ),
               if (media.status == CloudMediaStatus.syncing)
                 Container(
                   color: Colors.black45,
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: const Center(
+                      child: CircularProgressIndicator()),
                 ),
             ],
           ),
@@ -70,7 +76,12 @@ class MediaGrid extends StatelessWidget {
     return Container(
       color: Colors.grey[300],
       child: Center(
-          child: Icon(media.type.icon, size: 32, color: Colors.grey[600])),
+        child: Icon(
+          media.type.icon,
+          size: 32.r,
+          color: Colors.grey[600],
+        ),
+      ),
     );
   }
 }

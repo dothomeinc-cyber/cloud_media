@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:photo_view/photo_view.dart';
 import '../../models/cloud_media_item.dart';
 
@@ -23,8 +24,12 @@ class CloudImage extends StatelessWidget {
   final VoidCallback? onTap;
 
   String get _url {
-    if (media.thumbnailUrl.isNotEmpty) return media.thumbnailUrl;
-    if (media.downloadUrl.isNotEmpty) return media.downloadUrl;
+    if (media.thumbnailUrl.isNotEmpty) {
+      return media.thumbnailUrl;
+    }
+    if (media.downloadUrl.isNotEmpty) {
+      return media.downloadUrl;
+    }
     return media.localPath ?? '';
   }
 
@@ -35,6 +40,10 @@ class CloudImage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (_url.isEmpty) return _placeholder();
 
+    // Apply screenutil scaling using null-aware operator
+    final finalWidth = width?.w;
+    final finalHeight = height?.h;
+
     if (enableZoom) {
       return GestureDetector(
         onTap: onTap,
@@ -42,7 +51,8 @@ class CloudImage extends StatelessWidget {
           tag: 'cloud_image_${media.id}',
           child: PhotoView(
             imageProvider: _isLocal
-                ? FileImage(File(_url.replaceFirst('file://', '')))
+                ? FileImage(
+                    File(_url.replaceFirst('file://', '')))
                 : NetworkImage(_url) as ImageProvider,
             minScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.covered * 2,
@@ -53,39 +63,45 @@ class CloudImage extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: _isLocal ? _localImage() : _networkImage(),
+      child: _isLocal
+          ? _localImage(finalWidth, finalHeight)
+          : _networkImage(finalWidth, finalHeight),
     );
   }
 
-  Widget _localImage() => Image.file(
+  Widget _localImage(double? w, double? h) => Image.file(
         File(_url.replaceFirst('file://', '')),
-        width: width,
-        height: height,
+        width: w,
+        height: h,
         fit: fit,
         errorBuilder: (_, __, ___) => _error(),
       );
 
-  Widget _networkImage() => CachedNetworkImage(
+  Widget _networkImage(double? w, double? h) =>
+      CachedNetworkImage(
         imageUrl: _url,
-        width: width,
-        height: height,
+        width: w,
+        height: h,
         fit: fit,
         placeholder: (_, __) => _placeholder(),
         errorWidget: (_, __, ___) => _error(),
       );
 
   Widget _placeholder() => Container(
-        width: width,
-        height: height,
+        width: width?.w,
+        height: height?.h,
         color: Colors.grey[200],
-        child: const Center(child: CircularProgressIndicator()),
+        child: const Center(
+            child: CircularProgressIndicator()),
       );
 
   Widget _error() => Container(
-        width: width,
-        height: height,
+        width: width?.w,
+        height: height?.h,
         color: Colors.grey[300],
         child: const Center(
-            child: Icon(Icons.broken_image, color: Colors.grey)),
+          child:
+              Icon(Icons.broken_image, color: Colors.grey),
+        ),
       );
 }

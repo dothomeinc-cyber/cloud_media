@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class LoadingDialog extends StatelessWidget {
   const LoadingDialog({
@@ -20,11 +21,14 @@ class LoadingDialog extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (_) => LoadingDialog(
-          message: message, showProgress: showProgress, progress: progress),
+          message: message,
+          showProgress: showProgress,
+          progress: progress),
     );
   }
 
-  static void hide(BuildContext context) => Navigator.pop(context);
+  static void hide(BuildContext context) =>
+      Navigator.pop(context);
 
   @override
   Widget build(BuildContext context) {
@@ -33,18 +37,20 @@ class LoadingDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 60,
-            height: 60,
+            width: 60.r,
+            height: 60.r,
             child: showProgress && progress != null
                 ? CircularProgressIndicator(value: progress)
                 : const CircularProgressIndicator(),
           ),
-          const SizedBox(height: 16),
-          Text(message),
+          SizedBox(height: 16.h),
+          Text(message, style: TextStyle(fontSize: 14.sp)),
           if (showProgress && progress != null) ...[
-            const SizedBox(height: 8),
-            Text('${(progress! * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(fontSize: 14)),
+            SizedBox(height: 8.h),
+            Text(
+              '${(progress! * 100).toStringAsFixed(0)}%',
+              style: TextStyle(fontSize: 14.sp),
+            ),
           ],
         ],
       ),

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:video_player/video_player.dart';
 import '../../models/cloud_media_item.dart';
 
@@ -60,24 +61,32 @@ class _CloudVideoState extends State<CloudVideo> {
 
   void _toggle() {
     setState(() {
-      _isPlaying ? _controller!.pause() : _controller!.play();
+      _isPlaying
+          ? _controller!.pause()
+          : _controller!.play();
       _isPlaying = !_isPlaying;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Apply screenutil scaling using null-aware operator
+    final finalWidth = widget.width?.w;
+    final finalHeight = widget.height?.h;
+
     if (!_initialized || _controller == null) {
       return Container(
-        width: widget.width,
-        height: widget.height,
+        width: finalWidth,
+        height: finalHeight,
         color: Colors.black,
-        child: const Center(child: CircularProgressIndicator()),
+        child: const Center(
+            child: CircularProgressIndicator()),
       );
     }
+
     return Container(
-      width: widget.width,
-      height: widget.height,
+      width: finalWidth,
+      height: finalHeight,
       color: Colors.black,
       child: Stack(
         alignment: Alignment.center,
@@ -88,14 +97,18 @@ class _CloudVideoState extends State<CloudVideo> {
           ),
           if (widget.showControls)
             Positioned(
-              bottom: 16,
-              right: 16,
+              bottom: 16.h,
+              right: 16.w,
               child: CircleAvatar(
                 backgroundColor: Colors.black54,
+                radius: 20.r,
                 child: IconButton(
                   icon: Icon(
-                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                    _isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow,
                     color: Colors.white,
+                    size: 20.r,
                   ),
                   onPressed: _toggle,
                 ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../providers/upload_provider.dart';
 import '../../services/storage_queue_service.dart';
 import '../../services/upload_service.dart';
@@ -23,8 +24,8 @@ class UploadProgressIndicator extends ConsumerWidget {
       builder: (context, snapshot) {
         final progress = snapshot.data;
 
-        // Hidden once complete
-        if (progress != null && progress.status == 'completed') {
+        if (progress != null &&
+            progress.status == 'completed') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             onComplete?.call();
           });
@@ -38,40 +39,45 @@ class UploadProgressIndicator extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             LinearProgressIndicator(value: value),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
               children: [
                 Text('Uploading… $pct%',
-                    style: const TextStyle(fontSize: 12)),
+                    style: TextStyle(fontSize: 12.sp)),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.pause, size: 16),
+                      icon: Icon(Icons.pause, size: 16.r),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Pause',
                       onPressed: () =>
-                          StorageQueueService.pauseUpload(mediaId),
+                          StorageQueueService.pauseUpload(
+                              mediaId),
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4.w),
                     IconButton(
-                      icon: const Icon(Icons.play_arrow, size: 16),
+                      icon: Icon(Icons.play_arrow,
+                          size: 16.r),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Resume',
                       onPressed: () =>
-                          StorageQueueService.resumeUpload(mediaId),
+                          StorageQueueService.resumeUpload(
+                              mediaId),
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4.w),
                     IconButton(
-                      icon: const Icon(Icons.cancel, size: 16),
+                      icon: Icon(Icons.cancel, size: 16.r),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Cancel',
                       onPressed: () =>
-                          StorageQueueService.cancelUpload(mediaId),
+                          StorageQueueService.cancelUpload(
+                              mediaId),
                     ),
                   ],
                 ),

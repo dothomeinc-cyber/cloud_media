@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../api/cloud_media_api.dart';
 import '../../models/cloud_media_item.dart';
 import '../../models/cloud_media_type.dart';
 import '../widgets/media_grid.dart';
 
 class MediaLibraryScreen extends ConsumerStatefulWidget {
-  const MediaLibraryScreen({super.key, this.type, this.onMediaTap});
+  const MediaLibraryScreen(
+      {super.key, this.type, this.onMediaTap});
   final CloudMediaType? type;
   final void Function(CloudMediaItem)? onMediaTap;
 
   @override
-  ConsumerState<MediaLibraryScreen> createState() => _MediaLibraryScreenState();
+  ConsumerState<MediaLibraryScreen> createState() =>
+      _MediaLibraryScreenState();
 }
 
-class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
+class _MediaLibraryScreenState
+    extends ConsumerState<MediaLibraryScreen> {
   List<CloudMediaItem> _items = [];
   bool _loading = true;
   String? _error;
@@ -26,15 +30,25 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final items = await CloudMedia.list(type: widget.type);
+      final items =
+          await CloudMedia.list(type: widget.type);
       if (mounted) {
-        setState(() { _items = items; _loading = false; });
+        setState(() {
+          _items = items;
+          _loading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
-        setState(() { _error = e.toString(); _loading = false; });
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
       }
     }
   }
@@ -43,16 +57,40 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.type?.displayName ?? 'Media Library'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        title: Text(
+          widget.type?.displayName ?? 'Media Library',
+          style: TextStyle(fontSize: 18.sp),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh, size: 20.r),
+            onPressed: _load,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!))
+              ? Center(
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                        fontSize: 14.sp, color: Colors.red),
+                  ),
+                )
               : _items.isEmpty
-                  ? const Center(child: Text('No media yet'))
-                  : MediaGrid(mediaItems: _items, onItemTap: widget.onMediaTap),
+                  ? Center(
+                      child: Text(
+                        'No media yet',
+                        style: TextStyle(
+                            fontSize: 16.sp,
+                            color: Colors.grey),
+                      ),
+                    )
+                  : MediaGrid(
+                      mediaItems: _items,
+                      onItemTap: widget.onMediaTap,
+                    ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../providers/sync_providers.dart';
 
 class SyncStatusIndicator extends ConsumerWidget {
@@ -14,8 +15,8 @@ class SyncStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pendingAsync = ref.watch(pendingMediaCountProvider);
-    // FIX: isMediaSyncingProvider is Provider<bool> — read directly, no .when()
+    final pendingAsync =
+        ref.watch(pendingMediaCountProvider);
     final isSyncing = ref.watch(isMediaSyncingProvider);
     final syncText = ref.watch(syncStatusTextProvider);
 
@@ -26,48 +27,52 @@ class SyncStatusIndicator extends ConsumerWidget {
         }
 
         final badge = Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: EdgeInsets.symmetric(
+              horizontal: 12.w, vertical: 6.h),
           decoration: BoxDecoration(
             color: isSyncing ? Colors.blue : Colors.orange,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.r),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (isSyncing)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
+                SizedBox(
+                  width: 16.r,
+                  height: 16.r,
+                  child: const CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.white),
+                        AlwaysStoppedAnimation<Color>(
+                            Colors.white),
                   ),
                 )
               else
-                const Icon(Icons.sync_problem,
-                    color: Colors.white, size: 16),
+                Icon(Icons.sync_problem,
+                    color: Colors.white, size: 16.r),
               if (showLabel) ...[
-                const SizedBox(width: 8),
-                Text(syncText,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 12)),
+                SizedBox(width: 8.w),
+                Text(
+                  syncText,
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 12.sp),
+                ),
               ],
               if (pendingCount > 0 && !showLabel) ...[
-                const SizedBox(width: 4),
+                SizedBox(width: 4.w),
                 Container(
-                  padding: const EdgeInsets.all(2),
+                  padding: EdgeInsets.all(2.r),
                   decoration: const BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
                   ),
-                  constraints:
-                      const BoxConstraints(minWidth: 16, minHeight: 16),
+                  constraints: BoxConstraints(
+                      minWidth: 16.r, minHeight: 16.r),
                   child: Text(
                     '$pendingCount',
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 10),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.sp),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -78,9 +83,10 @@ class SyncStatusIndicator extends ConsumerWidget {
 
         if (showAsFloatingAction) {
           return Positioned(
-            bottom: 16,
-            right: 16,
-            child: Material(color: Colors.transparent, child: badge),
+            bottom: 16.h,
+            right: 16.w,
+            child: Material(
+                color: Colors.transparent, child: badge),
           );
         }
 

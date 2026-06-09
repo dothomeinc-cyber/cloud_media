@@ -191,7 +191,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.0.2"
+    version: "0.0.4"
   code_assets:
     dependency: transitive
     description:

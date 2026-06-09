@@ -5,54 +5,20 @@ import 'package:image_cropper/image_cropper.dart'
 
 /// Result of a crop operation.
 class CroppedFile {
-  /// Creates a [CroppedFile] with the given [path].
   const CroppedFile(this.path);
-
-  /// The local file path of the cropped image.
   final String path;
-
-  /// Returns the file size in bytes.
   Future<int> length() => File(path).length();
 }
 
 /// Style of the crop selection area.
 enum CropStyle {
-  /// Rectangular crop area (default).
   rectangle,
-
-  /// Circular crop area.
   circle,
 }
 
-/// Full-featured image cropping dialog using [image_cropper] ^11.0.0.
-///
-/// Wraps native cropping UI:
-/// - Android: uCrop (Yalantis)
-/// - iOS: TOCropViewController
-/// - Web: Cropper.js
-///
-/// Usage:
-/// ```dart
-/// final cropped = await CroppingDialog.show(
-///   context: context,
-///   imagePath: '/path/to/image.jpg',
-/// );
-/// if (cropped != null) {
-///   print(cropped.path);
-/// }
-/// ```
 class CroppingDialog {
   CroppingDialog._();
 
-  /// Show the cropping UI for the image at [imagePath].
-  ///
-  /// Returns a [CroppedFile] with the result path, or null if the user
-  /// cancelled.
-  ///
-  /// Parameters:
-  /// - [cropStyle] — rectangle (default) or circle
-  /// - [aspectRatio] — locked aspect ratio, or null for free crop
-  /// - [allowRotation] — whether to show rotation controls
   static Future<CroppedFile?> show({
     required BuildContext context,
     required String imagePath,
@@ -60,7 +26,6 @@ class CroppingDialog {
     double? aspectRatio,
     bool allowRotation = true,
   }) async {
-    // Convert our CropStyle to image_cropper's CropStyle
     final imageCropperCropStyle =
         cropStyle == CropStyle.circle
             ? image_cropper.CropStyle.circle
@@ -101,8 +66,7 @@ class CroppingDialog {
           cancelButtonTitle: 'Cancel',
           doneButtonTitle: 'Done',
           aspectRatioPresets: presets.length > 1
-              ? presets.sublist(
-                  0, 2) // iOS supports max 2 presets
+              ? presets.sublist(0, 2)
               : presets,
           resetAspectRatioEnabled: aspectRatio == null,
           aspectRatioLockEnabled: aspectRatio != null,
@@ -122,37 +86,31 @@ class CroppingDialog {
     return CroppedFile(result.path);
   }
 
-  /// Show a square (1:1) crop dialog — useful for profile pictures.
   static Future<CroppedFile?> showSquareCrop({
     required BuildContext context,
     required String imagePath,
   }) =>
       show(
-        context: context,
-        imagePath: imagePath,
-        aspectRatio: 1.0,
-      );
+          context: context,
+          imagePath: imagePath,
+          aspectRatio: 1.0);
 
-  /// Show a circular crop dialog — useful for avatars.
   static Future<CroppedFile?> showCircleCrop({
     required BuildContext context,
     required String imagePath,
   }) =>
       show(
-        context: context,
-        imagePath: imagePath,
-        cropStyle: CropStyle.circle,
-        aspectRatio: 1.0,
-      );
+          context: context,
+          imagePath: imagePath,
+          cropStyle: CropStyle.circle,
+          aspectRatio: 1.0);
 
-  /// Show a 16:9 crop dialog — useful for banners and thumbnails.
   static Future<CroppedFile?> showWideScreenCrop({
     required BuildContext context,
     required String imagePath,
   }) =>
       show(
-        context: context,
-        imagePath: imagePath,
-        aspectRatio: 16 / 9,
-      );
+          context: context,
+          imagePath: imagePath,
+          aspectRatio: 16 / 9);
 }

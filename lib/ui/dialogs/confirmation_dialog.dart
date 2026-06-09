@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ConfirmationDialog extends StatelessWidget {
   const ConfirmationDialog({
@@ -41,20 +42,25 @@ class ConfirmationDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(title),
-      content: Text(message),
+      title: Text(title, style: TextStyle(fontSize: 18.sp)),
+      content:
+          Text(message, style: TextStyle(fontSize: 14.sp)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text(cancelText),
+          child: Text(cancelText,
+              style: TextStyle(fontSize: 14.sp)),
         ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: confirmColor),
           onPressed: () {
             onConfirm();
             Navigator.pop(context, true);
           },
-          child: Text(confirmText, style: const TextStyle(color: Colors.white)),
+          child: Text(confirmText,
+              style: TextStyle(
+                  color: Colors.white, fontSize: 14.sp)),
         ),
       ],
     );
