@@ -191,7 +191,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.0.4"
+    version: "0.0.5"
   code_assets:
     dependency: transitive
     description:
@@ -236,10 +236,10 @@ packages:
     dependency: transitive
     description:
       name: coverage
-      sha256: "5da775aa218eaf2151c721b16c01c7676fbfdd99cebba2bf64e8b807a28ff94d"
+      sha256: "956a3de0725ca232ad353565a8290d3357592bf4250f6f298a185e2d949c5d3d"
       url: "https://pub.dev"
     source: hosted
-    version: "1.15.0"
+    version: "1.15.1"
   cross_file:
     dependency: transitive
     description:
@@ -521,10 +521,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_riverpod
-      sha256: be3aa640f053064e2238f8a308baa5be7270645e8b53b08484fd305bd5c1eb5d
+      sha256: "9255e1e3ad6e38906a1b4f8287678f95f378744c5b46b1985588543f3f19046e"
       url: "https://pub.dev"
     source: hosted
-    version: "3.3.2-dev.2"
+    version: "3.3.2"
   flutter_screenutil:
     dependency: "direct main"
     description:
@@ -971,10 +971,10 @@ packages:
     dependency: "direct main"
     description:
       name: permission_handler_package
-      sha256: "95d699beed814e4b8fbd4db5eb7218ab722f40443bc7108f8e59482c2fc2aa0d"
+      sha256: "8338ceb6b062e394809489b22683ea5aed6825c682d9e6bf7d20c3bbdc0c55d4"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.6"
+    version: "1.0.8"
   permission_handler_platform_interface:
     dependency: transitive
     description:
@@ -1059,18 +1059,18 @@ packages:
     dependency: transitive
     description:
       name: riverpod
-      sha256: da7233961958420e9d80edf4b7a735d5b6b732fe2381d2a12a388562e2042b3f
+      sha256: "17100416c51db7810c71a7bb2c34d1f881faa0074fd452afb0c4db6f8f126c76"
       url: "https://pub.dev"
     source: hosted
-    version: "3.3.2-dev.2"
+    version: "3.3.2"
   riverpod_offline_sync:
     dependency: "direct main"
     description:
       name: riverpod_offline_sync
-      sha256: "3573bdaf6d1cbefe174d6e459c306d2917fd0867c97c1d9ec9bdfe0a6068767d"
+      sha256: c14d0c3977626d4a2c78573d2fac48da5d4564fd8a190e7502bed4eddea025ec
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.5"
+    version: "1.0.6"
   rxdart:
     dependency: transitive
     description:
@@ -1176,10 +1176,10 @@ packages:
     dependency: transitive
     description:
       name: sqflite_common
-      sha256: cce558075afe2a83f3fd7fc123acd6b090683e4f23910d44fbb31ecd7800b014
+      sha256: "5bf6a55c166e73bf651ba7ec3ed486e577620e3dc8f3a9c6a258a8031b624590"
       url: "https://pub.dev"
     source: hosted
-    version: "2.5.9"
+    version: "2.5.11"
   sqflite_darwin:
     dependency: transitive
     description:
