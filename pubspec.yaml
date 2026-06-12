@@ -1,6 +1,6 @@
 name: cloud_media
 description: A complete Firebase-native media management Flutter package. One line to pick. Everything else automated.
-version: 0.0.6
+version: 0.0.8
 homepage: https://github.com/yourusername/cloud_media
 repository: https://github.com/yourusername/cloud_media
 
@@ -51,7 +51,7 @@ dependencies:
   connectivity_plus: ^7.1.1
 
   # Permissions
-  permission_handler_package: ^1.0.8
+  permission_handler_package: ^1.0.9
 
   # Utilities
   uuid: ^4.5.1
