@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_config.dart';
 import '../../models/cloud_media_type.dart';
@@ -6,7 +8,7 @@ import '../../services/permission_service.dart';
 import '../../services/upload_service.dart';
 import '../../utils/error_handler.dart';
 
-class MediaPickerScreen extends StatefulWidget {
+class MediaPickerScreen extends ConsumerStatefulWidget {
   const MediaPickerScreen({
     super.key,
     required this.mediaType,
@@ -21,12 +23,12 @@ class MediaPickerScreen extends StatefulWidget {
   final CloudMediaConfig config;
 
   @override
-  State<MediaPickerScreen> createState() =>
+  ConsumerState<MediaPickerScreen> createState() =>
       _MediaPickerScreenState();
 }
 
 class _MediaPickerScreenState
-    extends State<MediaPickerScreen> {
+    extends ConsumerState<MediaPickerScreen> {
   late final UploadService _uploadService;
   String _statusText = 'Initializing...';
 
@@ -46,15 +48,15 @@ class _MediaPickerScreenState
         case CloudMediaType.image:
         case CloudMediaType.video:
           await PermissionService.requestMediaPermissions(
-              context);
+              context, ref);
           break;
         case CloudMediaType.audio:
           await PermissionService
-              .requestMicrophonePermission(context);
+              .requestMicrophonePermission(context, ref);
           break;
         case CloudMediaType.file:
           await PermissionService.requestStoragePermission(
-              context);
+              context, ref);
           break;
       }
 
@@ -73,7 +75,7 @@ class _MediaPickerScreenState
     } on CloudMediaPermissionPermanentlyDeniedException {
       if (mounted) {
         Navigator.pop(context);
-        await PermissionService.openSettings();
+        await PermissionService.openSettings(ref);
       }
     } on CloudMediaPermissionDeniedException {
       if (mounted) Navigator.pop(context);
@@ -89,7 +91,10 @@ class _MediaPickerScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(),
+            Theme.of(context).platform == TargetPlatform.iOS ||
+                    Theme.of(context).platform == TargetPlatform.macOS
+                ? const CupertinoActivityIndicator()
+                : const CircularProgressIndicator(),
             SizedBox(height: 16.h),
             Text(_statusText,
                 style: TextStyle(fontSize: 14.sp)),

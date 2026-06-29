@@ -45,7 +45,6 @@ export 'providers/sync_providers.dart';
 
 // Services
 export 'services/offline_sync_service.dart';
-export 'services/storage_queue_service.dart';
 export 'services/firebase_service.dart';
 export 'services/upload_service.dart';
 export 'services/cache_service.dart';

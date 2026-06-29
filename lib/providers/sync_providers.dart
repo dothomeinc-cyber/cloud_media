@@ -41,7 +41,14 @@ final isMediaSyncingProvider = Provider<bool>((ref) {
 });
 
 final syncMetricsProvider = Provider<Map<String, dynamic>>((ref) {
-  return {'successRate': 0.95, 'totalSyncs': 0, 'failedSyncs': 0};
+  // Pull live metrics from the sync layer instead of returning hardcoded values.
+  final raw = OfflineSyncService.metrics;
+  if (raw == null) return const {'successRate': 0.0, 'totalSyncs': 0, 'failedSyncs': 0};
+  return {
+    'successRate': (raw.successRate as num?)?.toDouble() ?? 0.0,
+    'totalSyncs': (raw.totalSyncs as int?) ?? 0,
+    'failedSyncs': (raw.failedSyncs as int?) ?? 0,
+  };
 });
 
 final pendingOperationsProvider =

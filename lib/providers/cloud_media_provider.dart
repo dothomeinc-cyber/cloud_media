@@ -24,6 +24,7 @@ class CloudMediaProvider {
   late final ThumbnailService _thumbnailService;
 
   final Map<String, StreamController<CloudMediaItem>> _watchControllers = {};
+  final Map<String, StreamSubscription<CloudMediaItem>> _watchSubscriptions = {};
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -173,9 +174,10 @@ class CloudMediaProvider {
     if (!_watchControllers.containsKey(mediaId)) {
       final controller = StreamController<CloudMediaItem>.broadcast();
       _watchControllers[mediaId] = controller;
-      _firebaseService
+      final sub = _firebaseService
           .watchMedia(mediaId)
           .listen(controller.add, onError: controller.addError);
+      _watchSubscriptions[mediaId] = sub;
     }
     return _watchControllers[mediaId]!.stream;
   }
@@ -241,6 +243,10 @@ class CloudMediaProvider {
   }
 
   void dispose() {
+    for (final sub in _watchSubscriptions.values) {
+      sub.cancel();
+    }
+    _watchSubscriptions.clear();
     for (final c in _watchControllers.values) {
       c.close();
     }

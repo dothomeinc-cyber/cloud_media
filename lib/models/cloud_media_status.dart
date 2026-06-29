@@ -76,21 +76,22 @@ extension CloudMediaStatusExtension on CloudMediaStatus {
     }
   }
 
-  /// Color representing this status.
-  Color get color {
+  /// Theme-aware color representing this status.
+  Color statusColor(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     switch (this) {
       case CloudMediaStatus.pending:
-        return Colors.orange;
+        return cs.tertiary;
       case CloudMediaStatus.processing:
-        return Colors.blue;
+        return cs.secondary;
       case CloudMediaStatus.syncing:
-        return Colors.purple;
+        return cs.primary;
       case CloudMediaStatus.synced:
-        return Colors.green;
+        return cs.primary;
       case CloudMediaStatus.failed:
-        return Colors.red;
+        return cs.error;
       case CloudMediaStatus.deleted:
-        return Colors.grey;
+        return cs.outline;
     }
   }
 }

@@ -17,6 +17,7 @@ class UploadProgress extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.watch(uploadProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return StreamBuilder<UploadProgressData>(
       stream: notifier.getProgress(uploadId),
@@ -29,7 +30,7 @@ class UploadProgress extends ConsumerWidget {
         return Container(
           padding: EdgeInsets.all(8.r),
           decoration: BoxDecoration(
-            color: Colors.black87,
+            color: Colors.black.withAlpha(221),
             borderRadius: BorderRadius.circular(8.r),
           ),
           child: Column(
@@ -46,13 +47,13 @@ class UploadProgress extends ConsumerWidget {
                     Text(
                       '${(progress.progress * 100).toStringAsFixed(0)}%',
                       style: TextStyle(
-                          color: Colors.white,
+                          color: cs.onInverseSurface,
                           fontSize: 12.sp),
                     ),
                     Text(
                       '${_fmt(progress.uploaded)} / ${_fmt(progress.total)}',
                       style: TextStyle(
-                          color: Colors.white70,
+                          color: cs.onInverseSurface.withAlpha(178),
                           fontSize: 10.sp),
                     ),
                   ],

@@ -40,6 +40,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final total = widget.mediaItems.length;
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -99,8 +100,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: _currentIndex == i
-                                ? Colors.blue
-                                : Colors.grey,
+                                ? cs.primary
+                                : cs.outlineVariant,
                           ),
                         )),
               ),

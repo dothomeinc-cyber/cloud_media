@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -15,6 +16,8 @@ class SyncStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final pendingAsync =
         ref.watch(pendingMediaCountProvider);
     final isSyncing = ref.watch(isMediaSyncingProvider);
@@ -30,7 +33,7 @@ class SyncStatusIndicator extends ConsumerWidget {
           padding: EdgeInsets.symmetric(
               horizontal: 12.w, vertical: 6.h),
           decoration: BoxDecoration(
-            color: isSyncing ? Colors.blue : Colors.orange,
+            color: isSyncing ? cs.primary : cs.tertiary,
             borderRadius: BorderRadius.circular(20.r),
           ),
           child: Row(
@@ -40,30 +43,31 @@ class SyncStatusIndicator extends ConsumerWidget {
                 SizedBox(
                   width: 16.r,
                   height: 16.r,
-                  child: const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(
-                            Colors.white),
-                  ),
+                  child: theme.platform == TargetPlatform.iOS ||
+                          theme.platform == TargetPlatform.macOS
+                      ? CupertinoActivityIndicator(color: cs.onPrimary)
+                      : CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(cs.onPrimary),
+                        ),
                 )
               else
                 Icon(Icons.sync_problem,
-                    color: Colors.white, size: 16.r),
+                    color: cs.onPrimary, size: 16.r),
               if (showLabel) ...[
                 SizedBox(width: 8.w),
                 Text(
                   syncText,
                   style: TextStyle(
-                      color: Colors.white, fontSize: 12.sp),
+                      color: cs.onPrimary, fontSize: 12.sp),
                 ),
               ],
               if (pendingCount > 0 && !showLabel) ...[
                 SizedBox(width: 4.w),
                 Container(
                   padding: EdgeInsets.all(2.r),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
+                  decoration: BoxDecoration(
+                    color: cs.error,
                     shape: BoxShape.circle,
                   ),
                   constraints: BoxConstraints(
@@ -71,7 +75,7 @@ class SyncStatusIndicator extends ConsumerWidget {
                   child: Text(
                     '$pendingCount',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: cs.onError,
                         fontSize: 10.sp),
                     textAlign: TextAlign.center,
                   ),

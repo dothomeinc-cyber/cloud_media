@@ -38,7 +38,7 @@ class CloudImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (_url.isEmpty) return _placeholder();
+    if (_url.isEmpty) return _placeholder(context);
 
     // Apply screenutil scaling using null-aware operator
     final finalWidth = width?.w;
@@ -74,7 +74,7 @@ class CloudImage extends StatelessWidget {
         width: w,
         height: h,
         fit: fit,
-        errorBuilder: (_, __, ___) => _error(),
+        errorBuilder: (context, _, __) => _error(context),
       );
 
   Widget _networkImage(double? w, double? h) =>
@@ -83,25 +83,32 @@ class CloudImage extends StatelessWidget {
         width: w,
         height: h,
         fit: fit,
-        placeholder: (_, __) => _placeholder(),
-        errorWidget: (_, __, ___) => _error(),
+        placeholder: (context, _) => _placeholder(context),
+        errorWidget: (context, _, __) => _error(context),
       );
 
-  Widget _placeholder() => Container(
+  Widget _placeholder(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
         width: width?.w,
         height: height?.h,
-        color: Colors.grey[200],
+        color: cs.surfaceContainerLow,
         child: const Center(
             child: CircularProgressIndicator()),
       );
+  }
 
-  Widget _error() => Container(
+  Widget _error(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
         width: width?.w,
         height: height?.h,
-        color: Colors.grey[300],
-        child: const Center(
-          child:
-              Icon(Icons.broken_image, color: Colors.grey),
+        color: cs.surfaceContainerHighest,
+        child: Center(
+          child: Icon(Icons.broken_image, color: cs.onSurfaceVariant),
         ),
       );
+  }
 }

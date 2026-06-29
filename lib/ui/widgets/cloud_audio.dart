@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/cloud_media_item.dart';
@@ -66,6 +67,23 @@ class _CloudAudioState extends State<CloudAudio> {
     setState(() => _isPlaying = !_isPlaying);
   }
 
+
+  bool _isCupertino(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+  }
+
+  double get _sliderMax {
+    final seconds = _duration.inSeconds.toDouble();
+    return seconds <= 0 ? 1 : seconds;
+  }
+
+  double get _sliderValue => _position.inSeconds.toDouble().clamp(0, _sliderMax);
+
+  void _seekTo(double value) {
+    _player.seek(Duration(seconds: value.toInt()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -94,15 +112,17 @@ class _CloudAudioState extends State<CloudAudio> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Slider(
-                    value: _position.inSeconds
-                        .toDouble()
-                        .clamp(0,
-                            _duration.inSeconds.toDouble()),
-                    max: _duration.inSeconds.toDouble(),
-                    onChanged: (v) => _player
-                        .seek(Duration(seconds: v.toInt())),
-                  ),
+                  _isCupertino(context)
+                      ? CupertinoSlider(
+                          value: _sliderValue,
+                          max: _sliderMax,
+                          onChanged: _seekTo,
+                        )
+                      : Slider(
+                          value: _sliderValue,
+                          max: _sliderMax,
+                          onChanged: _seekTo,
+                        ),
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,

@@ -1,28 +1,42 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/cloud_media_config.dart';
+import '../api/cloud_media_api.dart';
 import '../models/cloud_media_item.dart';
-import '../services/firebase_service.dart';
+import '../models/cloud_media_type.dart';
 
+/// Lists all media for the current user.
+///
+/// Uses the already-initialized [CloudMediaProvider] from [CloudMedia],
+/// so the user's config (imageQuality, maxSelection, etc.) is honoured.
+/// Throws [StateError] if [CloudMedia.initialize] has not been called yet.
 final mediaListProvider =
     FutureProvider.family<List<CloudMediaItem>, String>((ref, userId) async {
-  final service = FirebaseService(config: const CloudMediaConfig());
-  await service.initialize();
-  return service.getUserMedia();
+  return CloudMedia.provider.listMedia();
 });
 
+/// Fetches a single media item by its ID.
+///
+/// Returns null if the item does not exist or an error occurs.
 final mediaItemProvider =
     FutureProvider.family<CloudMediaItem?, String>((ref, mediaId) async {
-  final service = FirebaseService(config: const CloudMediaConfig());
-  await service.initialize();
   try {
-    return await service.getMedia(mediaId);
+    return await CloudMedia.provider.getMedia(mediaId);
   } catch (_) {
     return null;
   }
 });
 
+/// Streams real-time updates for a single media item.
+///
+/// Emits null-safe errors via [handleError] so the provider never crashes.
 final mediaStreamProvider =
     StreamProvider.family<CloudMediaItem?, String>((ref, mediaId) {
-  final service = FirebaseService(config: const CloudMediaConfig());
-  return service.watchMedia(mediaId).handleError((_) => null);
+  return CloudMedia.provider
+      .watchMedia(mediaId)
+      .handleError((_) => null);
+});
+
+/// Lists media filtered by [CloudMediaType].
+final mediaByTypeProvider =
+    FutureProvider.family<List<CloudMediaItem>, CloudMediaType>((ref, type) async {
+  return CloudMedia.provider.listMedia(type: type);
 });

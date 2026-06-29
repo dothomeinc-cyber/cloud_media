@@ -9,6 +9,8 @@ class EditorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title:
@@ -18,7 +20,7 @@ class EditorScreen extends StatelessWidget {
         child: Text(
           'Editor coming soon',
           style: TextStyle(
-              fontSize: 16.sp, color: Colors.grey),
+              fontSize: 16.sp, color: cs.onSurfaceVariant),
         ),
       ),
     );

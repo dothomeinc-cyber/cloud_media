@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_background_remover/image_background_remover.dart';
@@ -218,8 +219,13 @@ class _BackgroundRemovalScreenState
                 SizedBox(
                   width: 80.r,
                   height: 80.r,
-                  child: CircularProgressIndicator(
-                      value: _progress, strokeWidth: 6.w),
+                  child: Theme.of(context).platform == TargetPlatform.iOS ||
+                          Theme.of(context).platform == TargetPlatform.macOS
+                      ? const CupertinoActivityIndicator(radius: 20)
+                      : CircularProgressIndicator(
+                          value: _progress,
+                          strokeWidth: 6.w,
+                        ),
                 ),
                 Text(
                   '${(_progress * 100).toStringAsFixed(0)}%',
@@ -240,7 +246,7 @@ class _BackgroundRemovalScreenState
             Text(
               'This may take up to 30 seconds.',
               style: TextStyle(
-                  color: Colors.grey, fontSize: 14.sp),
+                  color: Theme.of(context).colorScheme.outline, fontSize: 14.sp),
             ),
             SizedBox(height: 24.h),
             TextButton(
@@ -256,7 +262,7 @@ class _BackgroundRemovalScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.check_circle,
-                color: Colors.green, size: 80.r),
+                color: Theme.of(context).colorScheme.primary, size: 80.r),
             SizedBox(height: 16.h),
             Text(
               'Background removed!',
@@ -273,7 +279,7 @@ class _BackgroundRemovalScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.warning_amber_rounded,
-                color: Colors.orange, size: 80.r),
+                color: Theme.of(context).colorScheme.tertiary, size: 80.r),
             SizedBox(height: 16.h),
             Text(
               _errorMessage ?? 'Something went wrong.',
@@ -285,7 +291,7 @@ class _BackgroundRemovalScreenState
               'You can retry or continue with the original image.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Colors.grey, fontSize: 13.sp),
+                  color: Theme.of(context).colorScheme.outline, fontSize: 13.sp),
             ),
             SizedBox(height: 28.h),
             Row(

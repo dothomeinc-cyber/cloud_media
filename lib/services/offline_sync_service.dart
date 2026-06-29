@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:riverpod_offline_sync/riverpod_offline_sync.dart';
+import '../constants/firestore_paths.dart';
 import '../utils/logger.dart';
 
 enum QueuePriority { critical, high, normal, low, background }
@@ -63,16 +64,14 @@ class OfflineSyncService {
       ));
       final downloadUrl = await ref.getDownloadURL();
       await FirebaseFirestore.instance
-          .collection('users').doc(data['userId'] as String)
-          .collection('media').doc(data['mediaId'] as String)
+          .doc(FirestorePaths.mediaDoc(data['userId'] as String, data['mediaId'] as String))
           .update({'downloadUrl': downloadUrl, 'status': 'synced', 'syncedAt': Timestamp.now()});
       // No return value — Future<void>
     });
 
     sync.registerOperationHandler('media_metadata_create', (data) async {
       await FirebaseFirestore.instance
-          .collection('users').doc(data['userId'] as String)
-          .collection('media').doc(data['mediaId'] as String)
+          .doc(FirestorePaths.mediaDoc(data['userId'] as String, data['mediaId'] as String))
           .set(data['metadata'] as Map<String, dynamic>);
     });
 
@@ -82,8 +81,7 @@ class OfflineSyncService {
       await ref.putFile(file, SettableMetadata(contentType: 'image/webp'));
       final thumbUrl = await ref.getDownloadURL();
       await FirebaseFirestore.instance
-          .collection('users').doc(data['userId'] as String)
-          .collection('media').doc(data['mediaId'] as String)
+          .doc(FirestorePaths.mediaDoc(data['userId'] as String, data['mediaId'] as String))
           .update({'thumbnailUrl': thumbUrl});
     });
 
@@ -92,8 +90,7 @@ class OfflineSyncService {
         await FirebaseStorage.instance.ref(data['storagePath'] as String).delete();
       } catch (_) {}
       await FirebaseFirestore.instance
-          .collection('users').doc(data['userId'] as String)
-          .collection('media').doc(data['mediaId'] as String)
+          .doc(FirestorePaths.mediaDoc(data['userId'] as String, data['mediaId'] as String))
           .delete();
     });
   }

@@ -26,6 +26,8 @@ class MediaGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return GridView.builder(
       gridDelegate:
           SliverGridDelegateWithFixedCrossAxisCount(
@@ -42,20 +44,20 @@ class MediaGrid extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _tile(media),
+              _tile(context, media),
               if (media.type == CloudMediaType.video)
                 Positioned(
                   bottom: 8.h,
                   right: 8.w,
                   child: Icon(
                     Icons.play_circle_filled,
-                    color: Colors.white,
+                    color: cs.onPrimary,
                     size: 28.r,
                   ),
                 ),
               if (media.status == CloudMediaStatus.syncing)
                 Container(
-                  color: Colors.black45,
+                  color: Colors.black.withAlpha(115),
                   child: const Center(
                       child: CircularProgressIndicator()),
                 ),
@@ -66,7 +68,8 @@ class MediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _tile(CloudMediaItem media) {
+  Widget _tile(BuildContext context, CloudMediaItem media) {
+    final cs = Theme.of(context).colorScheme;
     if (media.type == CloudMediaType.image) {
       return CloudImage(media: media, fit: BoxFit.cover);
     }
@@ -74,12 +77,12 @@ class MediaGrid extends StatelessWidget {
       return CloudVideo(media: media, showControls: false);
     }
     return Container(
-      color: Colors.grey[300],
+      color: cs.surfaceContainerHighest,
       child: Center(
         child: Icon(
           media.type.icon,
           size: 32.r,
-          color: Colors.grey[600],
+          color: cs.onSurfaceVariant,
         ),
       ),
     );

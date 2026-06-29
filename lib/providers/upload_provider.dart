@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/cloud_media_config.dart';
+import '../api/cloud_media_api.dart';
 import '../services/upload_service.dart';
 
 final uploadProvider = Provider<UploadNotifier>((ref) {
@@ -10,8 +10,12 @@ final uploadProvider = Provider<UploadNotifier>((ref) {
 });
 
 class UploadNotifier {
+  // Use the config that was passed to CloudMedia.initialize() so imageQuality,
+  // compressAutomatically, maxSelection, etc. are all respected.
+  late final UploadService _service =
+      UploadService(config: CloudMedia.config);
+
   final Map<String, StreamController<UploadProgressData>> _controllers = {};
-  final UploadService _service = UploadService(config: const CloudMediaConfig());
 
   Stream<UploadProgressData> getProgress(String uploadId) {
     _controllers.putIfAbsent(

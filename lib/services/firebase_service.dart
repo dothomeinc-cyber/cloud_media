@@ -25,13 +25,16 @@ class FirebaseService {
 
   late FirebaseFirestore _firestore;
   late FirebaseStorage _storage;
+  bool _initialized = false;
 
   /// Initialize Firebase instances. Must be called before any other method.
   Future<void> initialize() async {
+    if (_initialized) return; // guard against concurrent / repeated calls
     _firestore = FirebaseFirestore.instance;
     _storage = config.customStorageBucket != null
         ? FirebaseStorage.instanceFor(bucket: config.customStorageBucket)
         : FirebaseStorage.instance;
+    _initialized = true;
     CloudLogger.info('FirebaseService ready. User: ${currentUser?.uid}');
   }
 
@@ -74,7 +77,7 @@ class FirebaseService {
   }) async {
     Query query = _firestore
         .collection(FirestorePaths.userMedia(_uid))
-        .where('deletedAt', isNull: true)
+        .where('deletedAt', isEqualTo: null)
         .orderBy('createdAt', descending: true)
         .limit(limit);
 

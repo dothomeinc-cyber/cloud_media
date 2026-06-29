@@ -38,6 +38,14 @@ class UploadService {
         break;
 
       case CloudMediaType.video:
+        // image_picker only supports single video selection.
+        // maxCount > 1 is silently treated as 1 for video — this is a known
+        // platform limitation. Use CloudMediaType.file for multi-video picking.
+        if (maxCount > 1) {
+          CloudLogger.warning(
+              'Video picking supports maxCount=1 only (platform limitation). '
+              'Requested $maxCount — picking 1.');
+        }
         final file = await _imagePicker.pickVideo(source: ImageSource.gallery);
         if (file != null) {
           pickedFiles = [PickedFile(file.path)];

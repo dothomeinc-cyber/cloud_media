@@ -24,6 +24,16 @@ class CloudMedia {
   static CloudMediaConfig _config = const CloudMediaConfig();
   static bool _initialized = false;
 
+  /// Internal accessor used by Riverpod providers to reach the initialized
+  /// [CloudMediaProvider] without creating a second instance.
+  static CloudMediaProvider get provider {
+    _ensure();
+    return _provider!;
+  }
+
+  /// The active config. Available after [initialize].
+  static CloudMediaConfig get config => _config;
+
   /// Initialize CloudMedia with the given [config].
   ///
   /// Must be called once before any other [CloudMedia] method.

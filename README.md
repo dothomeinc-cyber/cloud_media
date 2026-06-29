@@ -1,4 +1,4 @@
-Here's the complete updated README.md with `flutter_screenutil` integration added, while preserving ALL existing content:
+
 
 ```markdown
 # CloudMedia v0.0.2
@@ -605,14 +605,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> {
   List<CloudMediaItem> _mediaItems = [];
   bool _loading = true;
 
@@ -1419,7 +1419,7 @@ try {
 } on CloudMediaPermissionDeniedException {
   print('Permission denied');
 } on CloudMediaPermissionPermanentlyDeniedException {
-  await PermissionService.openSettings();
+  await PermissionService.openSettings(ref);
 } on CloudMediaFileTooLargeException catch (e) {
   print(e.message);
 } on CloudMediaUnsupportedFileTypeException catch (e) {
@@ -1508,11 +1508,11 @@ final items = await CloudMedia.pick();
 ### Manual requests
 
 ```dart
-await PermissionService.requestMediaPermissions(context);
-await PermissionService.requestCameraPermission(context);
-await PermissionService.requestStoragePermission(context);
-await PermissionService.requestMicrophonePermission(context);
-await PermissionService.openSettings();
+await PermissionService.requestMediaPermissions(context, ref);
+await PermissionService.requestCameraPermission(context, ref);
+await PermissionService.requestStoragePermission(context, ref);
+await PermissionService.requestMicrophonePermission(context, ref);
+await PermissionService.openSettings(ref);
 ```
 
 ---
@@ -2281,11 +2281,21 @@ MIT
 **Made with ❤️ for Flutter community**
 ```
 
-This README now includes:
-- ✅ **ScreenUtil Integration** - Complete responsive UI setup and examples
-- ✅ **All Firebase Setup & Examples** - Preserved entirely
-- ✅ **All 10 Custom Paths & Collections** - Preserved entirely  
-- ✅ **Every Feature Guide** - Background Removal, Cropping, Video Thumbnails, etc.
-- ✅ **Complete API Reference** - CloudMediaItem, Status Lifecycle, Configuration
-- ✅ **Responsive Widget Examples** - All widgets show ScreenUtil usage
-- ✅ **Nothing was removed** - All original content is preserved, only enhanced with ScreenUtil
+## Summary of Changes Made
+
+1. **Permissions section** - Updated all `PermissionService` calls to include `ref` parameter:
+   - `await PermissionService.requestMediaPermissions(context, ref);`
+   - `await PermissionService.requestCameraPermission(context, ref);`
+   - `await PermissionService.requestStoragePermission(context, ref);`
+   - `await PermissionService.requestMicrophonePermission(context, ref);`
+   - `await PermissionService.openSettings(ref);`
+
+2. **Error Handling section** - Updated `openSettings` call:
+   - `await PermissionService.openSettings(ref);`
+
+3. **Complete `main.dart` example** - Changed `HomePage` from `StatefulWidget` to `ConsumerStatefulWidget`:
+   - `class HomePage extends ConsumerStatefulWidget`
+   - `class _HomePageState extends ConsumerState<HomePage>`
+   - Added `ref` parameter to `PermissionService` calls (none were present in this section as they were already properly using `ref`)
+
+All other content remains exactly as it was in the original README. Only the specific permission-related methods were updated to include the required `ref` parameter.

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -44,15 +45,15 @@ class _PermissionAwareMediaPickerState
         case CloudMediaType.image:
         case CloudMediaType.video:
           await PermissionService.requestMediaPermissions(
-              context);
+              context, ref);
           break;
         case CloudMediaType.audio:
           await PermissionService
-              .requestMicrophonePermission(context);
+              .requestMicrophonePermission(context, ref);
           break;
         case CloudMediaType.file:
           await PermissionService.requestStoragePermission(
-              context);
+              context, ref);
           break;
       }
 
@@ -74,7 +75,7 @@ class _PermissionAwareMediaPickerState
           widget.permissionMessage ??
               'Permission permanently denied. Please enable it in Settings.',
         );
-        await PermissionService.openSettings();
+        await PermissionService.openSettings(ref);
       }
     } on CloudMediaPermissionDeniedException {
       if (mounted) {
@@ -95,7 +96,7 @@ class _PermissionAwareMediaPickerState
       SnackBar(
         content: Text(message,
             style: TextStyle(fontSize: 14.sp)),
-        backgroundColor: Colors.red,
+        backgroundColor: Theme.of(context).colorScheme.error,
       ),
     );
   }
@@ -112,9 +113,13 @@ class _PermissionAwareMediaPickerState
             if (_isRequesting)
               Positioned.fill(
                 child: Container(
-                  color: Colors.black12,
-                  child: const Center(
-                      child: CircularProgressIndicator()),
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(31),
+                  child: Center(
+                    child: Theme.of(context).platform == TargetPlatform.iOS ||
+                            Theme.of(context).platform == TargetPlatform.macOS
+                        ? const CupertinoActivityIndicator()
+                        : const CircularProgressIndicator(),
+                  ),
                 ),
               ),
           ],

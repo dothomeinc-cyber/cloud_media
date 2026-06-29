@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -69,13 +70,18 @@ class _MediaLibraryScreenState
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Theme.of(context).platform == TargetPlatform.iOS ||
+                      Theme.of(context).platform == TargetPlatform.macOS
+                  ? const CupertinoActivityIndicator()
+                  : const CircularProgressIndicator(),
+            )
           : _error != null
               ? Center(
                   child: Text(
                     _error!,
                     style: TextStyle(
-                        fontSize: 14.sp, color: Colors.red),
+                        fontSize: 14.sp, color: Theme.of(context).colorScheme.error),
                   ),
                 )
               : _items.isEmpty
@@ -84,7 +90,7 @@ class _MediaLibraryScreenState
                         'No media yet',
                         style: TextStyle(
                             fontSize: 16.sp,
-                            color: Colors.grey),
+                            color: Theme.of(context).colorScheme.outline),
                       ),
                     )
                   : MediaGrid(

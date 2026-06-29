@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../providers/upload_provider.dart';
-import '../../services/storage_queue_service.dart';
 import '../../services/upload_service.dart';
 
 class UploadProgressIndicator extends ConsumerWidget {
@@ -46,41 +45,6 @@ class UploadProgressIndicator extends ConsumerWidget {
               children: [
                 Text('Uploading… $pct%',
                     style: TextStyle(fontSize: 12.sp)),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.pause, size: 16.r),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Pause',
-                      onPressed: () =>
-                          StorageQueueService.pauseUpload(
-                              mediaId),
-                    ),
-                    SizedBox(width: 4.w),
-                    IconButton(
-                      icon: Icon(Icons.play_arrow,
-                          size: 16.r),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Resume',
-                      onPressed: () =>
-                          StorageQueueService.resumeUpload(
-                              mediaId),
-                    ),
-                    SizedBox(width: 4.w),
-                    IconButton(
-                      icon: Icon(Icons.cancel, size: 16.r),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Cancel',
-                      onPressed: () =>
-                          StorageQueueService.cancelUpload(
-                              mediaId),
-                    ),
-                  ],
-                ),
               ],
             ),
           ],
