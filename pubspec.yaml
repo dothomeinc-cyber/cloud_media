@@ -1,6 +1,6 @@
 name: cloud_media
 description: A complete Firebase-native media management Flutter package. One line to pick. Everything else automated.
-version: 1.0.0
+version: 1.0.1
 homepage: https://github.com/yourusername/cloud_media
 repository: https://github.com/yourusername/cloud_media
 
@@ -76,10 +76,19 @@ flutter:
   assets:
     - assets/icons/
 
-  plugin:
-    platforms:
-      android:
-        package: com.example.cloud_media
-        pluginClass: CloudMediaPlugin
-      ios:
-        pluginClass: CloudMediaPlugin
+  # NOTE: cloud_media is a pure-Dart package. It has no native Android/iOS
+  # implementation of its own — all platform work is delegated to its
+  # dependencies (image_picker, file_picker, firebase_storage, video_player,
+  # etc.), each of which already registers its own native plugin code.
+  #
+  # The `plugin:` block below was removed because it declared a
+  # `CloudMediaPlugin` native class (Android/iOS) that doesn't exist in this
+  # package's source tree. Flutter's plugin registrant then tried to locate
+  # and register that nonexistent class during every consuming app's build,
+  # causing:
+  #   "The plugin `cloud_media` doesn't have a main class defined in ..."
+  #
+  # Unless cloud_media later adds genuine native platform code (a real
+  # CloudMediaPlugin.kt / .swift file implementing a MethodChannel), this
+  # package should stay plugin-block-free and rely entirely on Dart-level
+  # composition of its dependencies.
