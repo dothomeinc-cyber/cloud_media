@@ -53,32 +53,41 @@ class UploadService {
         break;
 
       case CloudMediaType.audio:
-        // file_picker 12.x: fully static, use pickFile for single, pickFiles for multiple
         if (maxCount == 1) {
-          final result = await FilePicker.pickFile(type: FileType.audio);
-          if (result != null) pickedFiles = [PickedFile(result.path!)];
+          final f = await FilePicker.pickFile(type: FileType.audio);
+          if (f?.path != null) pickedFiles = [PickedFile(f!.path!)];
         } else {
           final result = await FilePicker.pickFiles(type: FileType.audio);
           if (result != null) {
-            pickedFiles = result.paths.whereType<String>().map(PickedFile.new).toList();
+            pickedFiles = result.files
+                .take(maxCount)
+                .map((f) => f.path)
+                .whereType<String>()
+                .map(PickedFile.new)
+                .toList();
           }
         }
         break;
 
       case CloudMediaType.file:
         if (maxCount == 1) {
-          final result = await FilePicker.pickFile(
+          final f = await FilePicker.pickFile(
             type: FileType.custom,
             allowedExtensions: ['pdf'],
           );
-          if (result != null) pickedFiles = [PickedFile(result.path!)];
+          if (f?.path != null) pickedFiles = [PickedFile(f!.path!)];
         } else {
           final result = await FilePicker.pickFiles(
             type: FileType.custom,
             allowedExtensions: ['pdf'],
           );
           if (result != null) {
-            pickedFiles = result.paths.whereType<String>().map(PickedFile.new).toList();
+            pickedFiles = result.files
+                .take(maxCount)
+                .map((f) => f.path)
+                .whereType<String>()
+                .map(PickedFile.new)
+                .toList();
           }
         }
         break;

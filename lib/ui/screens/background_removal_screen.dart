@@ -1,120 +1,48 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:image_background_remover/image_background_remover.dart';
-import 'package:path_provider/path_provider.dart';
-import '../../models/cloud_media_item.dart';
-import '../../utils/logger.dart';
+import '../../services/background_removal_service.dart';
 
-/// Abstract contract for background removal providers.
-abstract class BackgroundRemovalProvider {
-  Future<void> initialize();
-  Future<File> removeBackground(File image);
-  void dispose();
-}
-
-/// Default on-device provider using image_background_remover ONNX model.
-class LocalBackgroundRemovalProvider
-    implements BackgroundRemovalProvider {
-  bool _initialized = false;
-
-  @override
-  Future<void> initialize() async {
-    if (_initialized) return;
-    await BackgroundRemover.instance.initializeOrt();
-    _initialized = true;
-    CloudLogger.info(
-        'BackgroundRemover ONNX session initialized');
-  }
-
-  @override
-  Future<File> removeBackground(File imageFile) async {
-    await initialize();
-
-    try {
-      final bytes = await imageFile.readAsBytes();
-      final ui.Image resultImage =
-          await BackgroundRemover.instance.removeBg(bytes);
-
-      final byteData = await resultImage.toByteData(
-          format: ui.ImageByteFormat.png);
-      resultImage.dispose();
-
-      if (byteData == null) {
-        CloudLogger.warning(
-            'BackgroundRemover: byteData null, using original');
-        return imageFile;
-      }
-
-      final pngBytes = byteData.buffer.asUint8List();
-      final tempDir = await getTemporaryDirectory();
-      final outputPath =
-          '${tempDir.path}/cm_bg_removed_${DateTime.now().millisecondsSinceEpoch}.png';
-      final outputFile = File(outputPath);
-      await outputFile.writeAsBytes(pngBytes);
-
-      CloudLogger.debug('Background removed: $outputPath');
-      return outputFile;
-    } catch (e, st) {
-      CloudLogger.error('Background removal failed',
-          error: e, stackTrace: st);
-      return imageFile;
-    }
-  }
-
-  @override
-  void dispose() {
-    if (!_initialized) return;
-    BackgroundRemover.instance.dispose();
-    _initialized = false;
-    CloudLogger.info(
-        'BackgroundRemover ONNX session disposed');
-  }
-}
-
-/// Background removal screen with 30s timeout, retry, use-original fallback.
+/// Background removal screen using native_cutout.
+///
+/// This screen is optional. CloudMedia.pick() can also run the same service
+/// directly when no UI context is available.
 class BackgroundRemovalScreen extends StatefulWidget {
   const BackgroundRemovalScreen({
     super.key,
-    required this.media,
-    required this.onComplete,
-    this.provider,
+    required this.imagePath,
+    this.cropToSubject = true,
+    this.service = const BackgroundRemovalService(),
   });
 
-  final CloudMediaItem media;
-  final void Function(String processedPath) onComplete;
-  final BackgroundRemovalProvider? provider;
+  final String imagePath;
+  final bool cropToSubject;
+  final BackgroundRemovalService service;
 
   @override
   State<BackgroundRemovalScreen> createState() =>
       _BackgroundRemovalScreenState();
 }
 
-class _BackgroundRemovalScreenState
-    extends State<BackgroundRemovalScreen> {
-  late final BackgroundRemovalProvider _provider;
+class _BackgroundRemovalScreenState extends State<BackgroundRemovalScreen> {
   _Status _status = _Status.processing;
   String? _errorMessage;
   Timer? _timeout;
   double _progress = 0.0;
 
-  static const _timeoutDuration = Duration(seconds: 30);
+  static const _timeoutDuration = Duration(seconds: 60);
 
   @override
   void initState() {
     super.initState();
-    _provider =
-        widget.provider ?? LocalBackgroundRemovalProvider();
     _startRemoval();
   }
 
   @override
   void dispose() {
     _timeout?.cancel();
-    _provider.dispose();
     super.dispose();
   }
 
@@ -129,8 +57,7 @@ class _BackgroundRemovalScreenState
       if (mounted && _status == _Status.processing) {
         setState(() {
           _status = _Status.timedOut;
-          _errorMessage =
-              'Background removal timed out after 30 seconds.';
+          _errorMessage = 'Background removal timed out.';
         });
       }
     });
@@ -138,25 +65,25 @@ class _BackgroundRemovalScreenState
     _tickProgress();
 
     try {
-      final localPath = widget.media.localPath ?? '';
-      if (localPath.isEmpty)
-        // ignore: curly_braces_in_flow_control_structures
+      if (!File(widget.imagePath).existsSync()) {
         throw Exception('No local file path available.');
+      }
 
-      final result =
-          await _provider.removeBackground(File(localPath));
+      final result = await widget.service.removeBackground(
+        widget.imagePath,
+        cropToSubject: widget.cropToSubject,
+      );
 
       _timeout?.cancel();
+      if (!mounted) return;
 
-      if (mounted) {
-        setState(() {
-          _status = _Status.done;
-          _progress = 1.0;
-        });
-        await Future.delayed(
-            const Duration(milliseconds: 800));
-        if (mounted) widget.onComplete(result.path);
-      }
+      setState(() {
+        _status = _Status.done;
+        _progress = 1.0;
+      });
+
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (mounted) Navigator.of(context).pop(result);
     } catch (e) {
       _timeout?.cancel();
       if (mounted) {
@@ -169,10 +96,10 @@ class _BackgroundRemovalScreenState
   }
 
   void _tickProgress() {
-    Future.delayed(const Duration(milliseconds: 300), () {
+    Future<void>.delayed(const Duration(milliseconds: 300), () {
       if (mounted && _status == _Status.processing) {
         setState(() {
-          if (_progress < 0.9) _progress += 0.05;
+          if (_progress < 0.9) _progress += 0.04;
         });
         _tickProgress();
       }
@@ -181,17 +108,14 @@ class _BackgroundRemovalScreenState
 
   void _useOriginal() {
     _timeout?.cancel();
-    final original = widget.media.localPath ?? '';
-    if (original.isNotEmpty) widget.onComplete(original);
-    if (mounted) Navigator.pop(context);
+    Navigator.of(context).pop(widget.imagePath);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Remove Background',
-            style: TextStyle(fontSize: 18.sp)),
+        title: Text('Remove Background', style: TextStyle(fontSize: 18.sp)),
         leading: IconButton(
           icon: Icon(Icons.close, size: 24.r),
           onPressed: _useOriginal,
@@ -213,105 +137,39 @@ class _BackgroundRemovalScreenState
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 80.r,
-                  height: 80.r,
-                  child: Theme.of(context).platform == TargetPlatform.iOS ||
-                          Theme.of(context).platform == TargetPlatform.macOS
-                      ? const CupertinoActivityIndicator(radius: 20)
-                      : CircularProgressIndicator(
-                          value: _progress,
-                          strokeWidth: 6.w,
-                        ),
-                ),
-                Text(
-                  '${(_progress * 100).toStringAsFixed(0)}%',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14.sp),
-                ),
-              ],
+            SizedBox(
+              width: 80.r,
+              height: 80.r,
+              child: Theme.of(context).platform == TargetPlatform.iOS ||
+                      Theme.of(context).platform == TargetPlatform.macOS
+                  ? const CupertinoActivityIndicator(radius: 20)
+                  : CircularProgressIndicator(value: _progress),
             ),
             SizedBox(height: 24.h),
-            Text(
-              'Removing background…',
-              style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600),
-            ),
+            Text('Removing background…', style: TextStyle(fontSize: 18.sp)),
             SizedBox(height: 8.h),
-            Text(
-              'This may take up to 30 seconds.',
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.outline, fontSize: 14.sp),
-            ),
+            Text('First Android run may download the ML Kit model.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 13.sp)),
             SizedBox(height: 24.h),
-            TextButton(
-              onPressed: _useOriginal,
-              child: Text('Cancel — use original',
-                  style: TextStyle(fontSize: 14.sp)),
-            ),
+            TextButton(onPressed: _useOriginal, child: const Text('Use original')),
           ],
         );
-
       case _Status.done:
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle,
-                color: Theme.of(context).colorScheme.primary, size: 80.r),
-            SizedBox(height: 16.h),
-            Text(
-              'Background removed!',
-              style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600),
-            ),
-          ],
-        );
-
+        return Icon(Icons.check_circle,
+            color: Theme.of(context).colorScheme.primary, size: 80.r);
       case _Status.timedOut:
       case _Status.failed:
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning_amber_rounded,
-                color: Theme.of(context).colorScheme.tertiary, size: 80.r),
+            Icon(Icons.error_outline,
+                color: Theme.of(context).colorScheme.error, size: 64.r),
             SizedBox(height: 16.h),
-            Text(
-              _errorMessage ?? 'Something went wrong.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15.sp),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'You can retry or continue with the original image.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.outline, fontSize: 13.sp),
-            ),
-            SizedBox(height: 28.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _useOriginal,
-                  icon: Icon(Icons.image, size: 18.r),
-                  label: Text('Use Original',
-                      style: TextStyle(fontSize: 14.sp)),
-                ),
-                SizedBox(width: 16.w),
-                ElevatedButton.icon(
-                  onPressed: _startRemoval,
-                  icon: Icon(Icons.refresh, size: 18.r),
-                  label: Text('Retry',
-                      style: TextStyle(fontSize: 14.sp)),
-                ),
-              ],
-            ),
+            Text(_errorMessage ?? 'Something went wrong.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp)),
+            SizedBox(height: 16.h),
+            ElevatedButton(onPressed: _startRemoval, child: const Text('Retry')),
+            TextButton(onPressed: _useOriginal, child: const Text('Use original')),
           ],
         );
     }

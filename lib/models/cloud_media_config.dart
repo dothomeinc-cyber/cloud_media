@@ -19,7 +19,7 @@ class CloudMediaConfig {
   final int imageQuality;
 
   /// Thumbnail size in pixels (width and height). Default: 200.
-  /// Thumbnails are generated as 200×200 WebP on-device.
+  /// Image thumbnails are generated as JPEG on-device. Video thumbnails may be WebP.
   final int thumbnailSize;
 
   /// Maximum number of files the user can select at once. Default: 20.

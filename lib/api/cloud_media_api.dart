@@ -1,21 +1,16 @@
+import 'package:flutter/material.dart';
 import '../models/cloud_media_config.dart';
 import '../models/cloud_media_item.dart';
 import '../models/cloud_media_type.dart';
+import '../models/compression_profile.dart';
 import '../providers/cloud_media_provider.dart';
+import '../ui/dialogs/confirmation_dialog.dart';
 
 /// The primary public API for the CloudMedia package.
 ///
 /// Initialize once in `main()` before using any other methods:
 /// ```dart
 /// await CloudMedia.initialize(config: CloudMediaConfig());
-/// ```
-///
-/// Then use anywhere in your app:
-/// ```dart
-/// final items = await CloudMedia.pick();
-/// final all   = await CloudMedia.list();
-/// CloudMedia.watch(items.first.id).listen((item) => print(item.status));
-/// await CloudMedia.delete(items.first.id);
 /// ```
 class CloudMedia {
   CloudMedia._();
@@ -24,8 +19,7 @@ class CloudMedia {
   static CloudMediaConfig _config = const CloudMediaConfig();
   static bool _initialized = false;
 
-  /// Internal accessor used by Riverpod providers to reach the initialized
-  /// [CloudMediaProvider] without creating a second instance.
+  /// Internal accessor — used by Riverpod providers without creating a second instance.
   static CloudMediaProvider get provider {
     _ensure();
     return _provider!;
@@ -34,18 +28,11 @@ class CloudMedia {
   /// The active config. Available after [initialize].
   static CloudMediaConfig get config => _config;
 
-  /// Initialize CloudMedia with the given [config].
-  ///
-  /// Must be called once before any other [CloudMedia] method.
-  /// Firebase and riverpod_offline_sync must be initialized by the host app
-  /// before calling this.
+  /// Initialize CloudMedia. Call once in main() after Firebase.initializeApp().
   ///
   /// ```dart
   /// await CloudMedia.initialize(
-  ///   config: const CloudMediaConfig(
-  ///     imageQuality: 85,
-  ///     enableOfflineSync: true,
-  ///   ),
+  ///   config: const CloudMediaConfig(imageQuality: 85),
   /// );
   /// ```
   static Future<void> initialize({
@@ -59,58 +46,68 @@ class CloudMedia {
 
   /// Pick one or more media files from the device.
   ///
-  /// Returns a [List<CloudMediaItem>]. Each item is immediately available
-  /// with a [localPath] while the upload queues in the background.
-  ///
-  /// Parameters:
-  /// - [type] — the type of media to pick (default: [CloudMediaType.image])
-  /// - [maxCount] — maximum number of files (default: 1, max: 100)
-  /// - [enableEditing] — show crop/rotate editor after picking
-  /// - [enableBackgroundRemoval] — show background removal screen
-  ///
   /// ```dart
-  /// // Single image
-  /// final items = await CloudMedia.pick();
+  /// // Simple image pick
+  /// final items = await CloudMedia.pick(context: context);
   ///
-  /// // Multiple images
-  /// final items = await CloudMedia.pick(maxCount: 10);
+  /// // Product image with editing, preview, custom folder, compression profile
+  /// final items = await CloudMedia.pick(
+  ///   context: context,
+  ///   type: CloudMediaType.image,
+  ///   enableEditing: true,
+  ///   showPreview: true,
+  ///   folder: 'products',
+  ///   subFolder: productId,
+  ///   compressionProfile: CompressionProfile.product,
+  /// );
   ///
-  /// // With background removal
-  /// final items = await CloudMedia.pick(enableBackgroundRemoval: true);
+  /// // Background removal
+  /// final items = await CloudMedia.pick(
+  ///   context: context,
+  ///   enableBackgroundRemoval: true,
+  /// );
   /// ```
   ///
-  /// Throws [CloudMediaPermissionDeniedException] if permission is denied.
-  /// Throws [CloudMediaFileTooLargeException] if a file exceeds the size limit.
-  /// Throws [CloudMediaUnsupportedFileTypeException] for unsupported formats.
+  /// If [showPreview] is true, the user sees a review screen after picking
+  /// and can confirm or cancel before the upload begins.
+  ///
+  /// If [compressionProfile] is set it overrides the [CloudMediaConfig]
+  /// quality and thumbnail size for this pick only.
+  ///
+  /// Storage path layout:
+  ///   `users/{uid}/media/{folder}/{subFolder}/{mediaId}/{fileName}`
   static Future<List<CloudMediaItem>> pick({
+    BuildContext? context,
     CloudMediaType type = CloudMediaType.image,
     int maxCount = 1,
-    bool enableEditing = true,
+    bool enableEditing = false,
     bool enableBackgroundRemoval = false,
+    bool showPreview = false,
+    String? folder,
+    String? subFolder,
+    CompressionProfile? compressionProfile,
   }) async {
     _ensure();
     return _provider!.pickMedia(
       type: type,
+      context: context,
       maxCount: maxCount,
       enableEditing: enableEditing,
       enableBackgroundRemoval: enableBackgroundRemoval,
+      showPreview: showPreview,
+      folder: folder,
+      subFolder: subFolder,
+      compressionProfile: compressionProfile,
     );
   }
 
-  /// List all media uploaded by the current authenticated user.
-  ///
-  /// Supports filtering by type, date range, and pagination.
+  /// List all media for the current user with optional filters.
   ///
   /// ```dart
-  /// // All media
-  /// final all = await CloudMedia.list();
-  ///
-  /// // Images only
+  /// final all    = await CloudMedia.list();
   /// final images = await CloudMedia.list(type: CloudMediaType.image);
-  ///
-  /// // Date range
   /// final recent = await CloudMedia.list(
-  ///   startDate: DateTime.now().subtract(Duration(days: 7)),
+  ///   startDate: DateTime.now().subtract(const Duration(days: 7)),
   /// );
   /// ```
   static Future<List<CloudMediaItem>> list({
@@ -132,15 +129,13 @@ class CloudMedia {
     );
   }
 
-  /// Watch real-time status updates for a media item.
-  ///
-  /// Emits updates as the item transitions through:
-  /// `pending → processing → syncing → synced`
+  /// Watch real-time status updates for a single media item.
   ///
   /// ```dart
   /// CloudMedia.watch(item.id).listen((updated) {
-  ///   print(updated.status.displayName);
-  ///   print(updated.downloadUrl); // available when synced
+  ///   if (updated.status == CloudMediaStatus.synced) {
+  ///     print(updated.downloadUrl);
+  ///   }
   /// });
   /// ```
   static Stream<CloudMediaItem> watch(String mediaId) {
@@ -148,65 +143,94 @@ class CloudMedia {
     return _provider!.watchMedia(mediaId);
   }
 
-  /// Fetch a single media item by its [mediaId].
-  ///
-  /// Throws [CloudMediaNotFoundException] if the item does not exist.
+  /// Fetch a single media item by id.
   static Future<CloudMediaItem> get(String mediaId) async {
     _ensure();
     return _provider!.getMedia(mediaId);
   }
 
-  /// Delete a media item by [mediaId].
-  ///
-  /// Removes the item from Firebase Storage, Firestore, and local cache.
-  /// The deletion is queued if offline and executed when connectivity returns.
+  /// Delete by media id. Queued if offline.
   static Future<void> delete(String mediaId) async {
     _ensure();
     await _provider!.deleteMedia(mediaId);
   }
 
-  /// Delete a media item by its [CloudMediaItem] reference.
-  static Future<void> deleteRef(CloudMediaItem item) async {
-    _ensure();
-    await _provider!.deleteMedia(item.id);
+  /// Delete from a [CloudMediaItem] reference.
+  static Future<void> deleteRef(CloudMediaItem item) => delete(item.id);
+
+  /// Show a confirmation dialog then delete if confirmed.
+  ///
+  /// Returns true if deleted, false if cancelled.
+  ///
+  /// ```dart
+  /// final deleted = await CloudMedia.showDeleteDialog(context, item);
+  /// ```
+  static Future<bool> showDeleteDialog(
+    BuildContext context,
+    CloudMediaItem item,
+  ) async {
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Delete media?',
+      message: '"${item.fileName}" will be permanently removed.',
+      confirmText: 'Delete',
+      confirmColor: Colors.red,
+    );
+    if (confirmed != true) return false;
+    await delete(item.id);
+    return true;
   }
 
-  /// Download a media item to the device's local storage.
-  ///
-  /// Returns the local file path. Checks cache before downloading.
+  /// Download to local storage. Checks cache first.
   static Future<String> download(String mediaId) async {
     _ensure();
     return _provider!.downloadMedia(mediaId);
   }
 
-  /// Share a media item using the platform share sheet.
+  /// Share via platform share sheet.
   static Future<void> share(String mediaId) async {
     _ensure();
     await _provider!.shareMedia(mediaId);
   }
 
-  /// Restore a soft-deleted media item.
+  /// Restore a soft-deleted item.
   static Future<void> restore(String mediaId) async {
     _ensure();
     await _provider!.restoreMedia(mediaId);
   }
 
-  /// Force-flush all pending operations in the offline sync queue.
+  /// Force-flush the offline sync queue.
   static Future<void> sync() async {
     _ensure();
     await _provider!.forceSync();
   }
 
-  /// Returns the number of operations currently waiting in the offline queue.
+  /// Number of operations pending in the offline queue.
   static Future<int> getPendingCount() async {
     _ensure();
     return _provider!.getPendingCount();
   }
 
-  /// Clear all local disk and memory cache.
+  /// Clear all local disk cache.
+  ///
+  /// ```dart
+  /// await CloudMedia.clearCache();
+  /// ```
   static Future<void> clearCache() async {
     _ensure();
     await _provider!.clearCache();
+  }
+
+  /// Returns total cache size in bytes.
+  ///
+  /// ```dart
+  /// final bytes = await CloudMedia.cacheSize();
+  /// final mb = (bytes / 1024 / 1024).toStringAsFixed(1);
+  /// print('Cache: ${mb}MB');
+  /// ```
+  static Future<int> cacheSize() async {
+    _ensure();
+    return _provider!.getCacheSize();
   }
 
   static void _ensure() {

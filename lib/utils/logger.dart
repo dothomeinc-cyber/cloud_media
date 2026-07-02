@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class CloudLogger {
   CloudLogger._();
 
@@ -5,22 +7,22 @@ class CloudLogger {
   static bool isDebugEnabled = true;
 
   static void info(String message) {
-    if (isEnabled) print('[CloudMedia INFO] $message');
+    if (isEnabled) debugPrint('[CloudMedia INFO] $message');
   }
 
   static void debug(String message) {
-    if (isEnabled && isDebugEnabled) print('[CloudMedia DEBUG] $message');
+    if (isEnabled && isDebugEnabled) debugPrint('[CloudMedia DEBUG] $message');
   }
 
   static void warning(String message) {
-    if (isEnabled) print('[CloudMedia WARNING] $message');
+    if (isEnabled) debugPrint('[CloudMedia WARNING] $message');
   }
 
   static void error(String message,
       {dynamic error, StackTrace? stackTrace}) {
     if (!isEnabled) return;
-    print('[CloudMedia ERROR] $message');
-    if (error != null) print('  ↳ $error');
-    if (stackTrace != null) print('  ↳ $stackTrace');
+    debugPrint('[CloudMedia ERROR] $message');
+    if (error != null) debugPrint('  ↳ $error');
+    if (stackTrace != null) debugPrint('  ↳ $stackTrace');
   }
 }

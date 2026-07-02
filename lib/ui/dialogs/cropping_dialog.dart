@@ -1,20 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart'
-    as image_cropper;
+import 'package:flutter_img_editor/image_editor.dart';
+import '../screens/editor_screen.dart';
 
-/// Result of a crop operation.
 class CroppedFile {
   const CroppedFile(this.path);
   final String path;
-  Future<int> length() => File(path).length();
 }
 
-/// Style of the crop selection area.
-enum CropStyle {
-  rectangle,
-  circle,
-}
+enum CropStyle { rectangle, circle }
 
 class CroppingDialog {
   CroppingDialog._();
@@ -26,91 +19,57 @@ class CroppingDialog {
     double? aspectRatio,
     bool allowRotation = true,
   }) async {
-    final imageCropperCropStyle =
-        cropStyle == CropStyle.circle
-            ? image_cropper.CropStyle.circle
-            : image_cropper.CropStyle.rectangle;
-
-    final List<image_cropper.CropAspectRatioPreset>
-        presets = aspectRatio != null
-            ? [image_cropper.CropAspectRatioPreset.original]
-            : [
-                image_cropper
-                    .CropAspectRatioPreset.original,
-                image_cropper.CropAspectRatioPreset.square,
-                image_cropper
-                    .CropAspectRatioPreset.ratio4x3,
-                image_cropper
-                    .CropAspectRatioPreset.ratio16x9,
-              ];
-
-    final result =
-        await image_cropper.ImageCropper().cropImage(
-      sourcePath: imagePath,
-      uiSettings: [
-        image_cropper.AndroidUiSettings(
-          toolbarTitle: 'Crop Image',
-          toolbarColor: Theme.of(context).primaryColor,
-          toolbarWidgetColor: Colors.white,
-          activeControlsWidgetColor:
-              Theme.of(context).primaryColor,
-          cropStyle: imageCropperCropStyle,
-          aspectRatioPresets: presets,
-          lockAspectRatio: aspectRatio != null,
-          showCropGrid: true,
-          initAspectRatio:
-              image_cropper.CropAspectRatioPreset.original,
-        ),
-        image_cropper.IOSUiSettings(
-          title: 'Crop Image',
-          cancelButtonTitle: 'Cancel',
-          doneButtonTitle: 'Done',
-          aspectRatioPresets: presets.length > 1
-              ? presets.sublist(0, 2)
-              : presets,
-          resetAspectRatioEnabled: aspectRatio == null,
-          aspectRatioLockEnabled: aspectRatio != null,
-          rotateButtonsHidden: !allowRotation,
-        ),
-        image_cropper.WebUiSettings(
-          context: context,
-          presentStyle:
-              image_cropper.WebPresentStyle.dialog,
-          size: const image_cropper.CropperSize(
-              width: 520, height: 520),
-        ),
-      ],
+    final config = ImageEditorConfig(
+      enableText: false,
+      cropOptions: CropOptionConfig(
+        enableFree: aspectRatio == null,
+        enable16By9: aspectRatio == null || aspectRatio == 16 / 9,
+        enable5By4: aspectRatio == null || aspectRatio == 5 / 4,
+        enable1By1: aspectRatio == null || aspectRatio == 1.0,
+      ),
+      rotateOptions: RotateOptionConfig(
+        enableFree: allowRotation,
+        enableFixed: allowRotation,
+      ),
+      topToolbar: const TopToolbarConfig(
+        titleText: 'Edit Image',
+        confirmText: 'Done',
+      ),
+      compression: const ImageCompressionConfig(
+        enabled: true,
+        scale: 1.0,
+      ),
     );
 
-    if (result == null) return null;
-    return CroppedFile(result.path);
+    final path = await CloudMediaImageEditor.edit(
+      context: context,
+      imagePath: imagePath,
+      config: config,
+    );
+    if (path == null || path.isEmpty) return null;
+    return CroppedFile(path);
   }
 
   static Future<CroppedFile?> showSquareCrop({
     required BuildContext context,
     required String imagePath,
   }) =>
-      show(
-          context: context,
-          imagePath: imagePath,
-          aspectRatio: 1.0);
+      show(context: context, imagePath: imagePath, aspectRatio: 1.0);
 
   static Future<CroppedFile?> showCircleCrop({
     required BuildContext context,
     required String imagePath,
   }) =>
       show(
-          context: context,
-          imagePath: imagePath,
-          cropStyle: CropStyle.circle,
-          aspectRatio: 1.0);
+        context: context,
+        imagePath: imagePath,
+        cropStyle: CropStyle.circle,
+        aspectRatio: 1.0,
+      );
 
   static Future<CroppedFile?> showWideScreenCrop({
     required BuildContext context,
     required String imagePath,
   }) =>
-      show(
-          context: context,
-          imagePath: imagePath,
-          aspectRatio: 16 / 9);
+      show(context: context, imagePath: imagePath, aspectRatio: 16 / 9);
 }

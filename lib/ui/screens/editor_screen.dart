@@ -1,28 +1,92 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../models/cloud_media_item.dart';
+import 'package:flutter_img_editor/image_editor.dart';
 
-/// Future: crop, rotate, brightness, contrast.
+/// Full image editor screen powered by flutter_img_editor.
+///
+/// Supports crop, rotation, undo/reset, and optional text overlays depending on
+/// [config]. It returns the edited image as a temporary file path.
 class EditorScreen extends StatelessWidget {
-  const EditorScreen({super.key, required this.media});
-  final CloudMediaItem media;
+  const EditorScreen({
+    super.key,
+    required this.image,
+    this.config = const ImageEditorConfig(
+      enableText: false,
+      cropOptions: CropOptionConfig(
+        enableFree: true,
+        enable16By9: true,
+        enable5By4: true,
+        enable1By1: true,
+      ),
+      rotateOptions: RotateOptionConfig(
+        enableFree: true,
+        enableFixed: true,
+      ),
+      topToolbar: TopToolbarConfig(
+        titleText: 'Edit Image',
+        confirmText: 'Done',
+      ),
+      compression: ImageCompressionConfig(
+        enabled: true,
+        scale: 1.0,
+      ),
+    ),
+  });
+
+  final ui.Image image;
+  final ImageEditorConfig config;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    return ImageEditor(image: image, config: config);
+  }
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title:
-            Text('Edit', style: TextStyle(fontSize: 18.sp)),
+class CloudMediaImageEditor {
+  const CloudMediaImageEditor._();
+
+  static Future<String?> edit({
+    required BuildContext context,
+    required String imagePath,
+    ImageEditorConfig config = const ImageEditorConfig(
+      enableText: false,
+      cropOptions: CropOptionConfig(
+        enableFree: true,
+        enable16By9: true,
+        enable5By4: true,
+        enable1By1: true,
       ),
-      body: Center(
-        child: Text(
-          'Editor coming soon',
-          style: TextStyle(
-              fontSize: 16.sp, color: cs.onSurfaceVariant),
-        ),
+      rotateOptions: RotateOptionConfig(
+        enableFree: true,
+        enableFixed: true,
+      ),
+      topToolbar: TopToolbarConfig(
+        titleText: 'Edit Image',
+        confirmText: 'Done',
+      ),
+      compression: ImageCompressionConfig(
+        enabled: true,
+        scale: 1.0,
+      ),
+    ),
+  }) async {
+    final original = await loadImageFromFile(imagePath);
+    if (!context.mounted) return null;
+
+    final result = await Navigator.of(context).push<ui.Image?>(
+      MaterialPageRoute(
+        builder: (_) => EditorScreen(image: original, config: config),
       ),
     );
+
+    original.dispose();
+    if (!context.mounted || result == null) return null;
+
+    final path = await saveImageToTempFile(
+      result,
+      compression: config.compression,
+    );
+    result.dispose();
+    return path;
   }
 }

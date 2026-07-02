@@ -76,9 +76,13 @@ class OfflineSyncService {
     });
 
     sync.registerOperationHandler('thumbnail_upload', (data) async {
-      final file = File(data['thumbnailPath'] as String);
+      final thumbnailPath = data['thumbnailPath'] as String;
+      final file = File(thumbnailPath);
       final ref = FirebaseStorage.instance.ref(data['thumbnailStoragePath'] as String);
-      await ref.putFile(file, SettableMetadata(contentType: 'image/webp'));
+      await ref.putFile(
+        file,
+        SettableMetadata(contentType: _thumbnailContentType(thumbnailPath)),
+      );
       final thumbUrl = await ref.getDownloadURL();
       await FirebaseFirestore.instance
           .doc(FirestorePaths.mediaDoc(data['userId'] as String, data['mediaId'] as String))
@@ -147,7 +151,28 @@ class OfflineSyncService {
     );
   }
 
-  static Future<void> forceSync() async => OfflineSyncLayer.instance.sync();
+  static Future<void> forceSync() async {
+    final syncLayer = OfflineSyncLayer.instance as dynamic;
+    try {
+      await syncLayer.forceSync();
+    } on NoSuchMethodError {
+      await syncLayer.sync();
+    }
+  }
+
+  static String _thumbnailContentType(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'webp':
+        return 'image/webp';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
+    }
+  }
   static Future<int> getPendingCount() async {
     final p = await OfflineSyncLayer.instance.getPendingOperations();
     return p.length;

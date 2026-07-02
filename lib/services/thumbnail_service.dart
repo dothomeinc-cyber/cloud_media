@@ -49,11 +49,9 @@ class ThumbnailService {
 
     final tempDir = await getTemporaryDirectory();
     final thumbPath =
-        '${tempDir.path}/cm_thumb_${DateTime.now().millisecondsSinceEpoch}.webp';
+        '${tempDir.path}/cm_thumb_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-    final thumbBytes =
-        img.encodeNamedImage(thumbPath, thumb) ??
-            img.encodeJpg(thumb, quality: 80);
+    final thumbBytes = img.encodeJpg(thumb, quality: 80);
     await File(thumbPath).writeAsBytes(thumbBytes);
 
     CloudLogger.debug('Image thumbnail: $thumbPath');

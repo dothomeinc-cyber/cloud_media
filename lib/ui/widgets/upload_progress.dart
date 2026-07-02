@@ -22,8 +22,9 @@ class UploadProgress extends ConsumerWidget {
     return StreamBuilder<UploadProgressData>(
       stream: notifier.getProgress(uploadId),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const SizedBox.shrink();
+        }
 
         final progress = snapshot.data!;
 

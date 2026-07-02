@@ -22,17 +22,29 @@ class PermissionService {
   }
 
   static Future<void> requestMediaPermissions(BuildContext context, WidgetRef ref) async {
-    final granted = await ref.read(permissionActionProvider.notifier).initializeRequiredPermissions(
+    await ref.read(permissionActionProvider.notifier).initializeRequiredPermissions(
       context: context,
       requiredPermissions: [PermissionType.camera, PermissionType.storage],
       title: 'Media Access Required',
       message: 'CloudMedia needs camera and storage access.',
     );
-    if (!granted) {
-      final cameraDenied = await ref.read(permissionManagerProvider).isPermissionPermanentlyDenied(PermissionType.camera);
-      if (cameraDenied) throw const CloudMediaPermissionPermanentlyDeniedException();
-      throw const CloudMediaPermissionDeniedException();
+
+    final manager = ref.read(permissionManagerProvider);
+    final cameraGranted = await manager.isPermissionGranted(PermissionType.camera);
+    final storageGranted = await manager.isPermissionGranted(PermissionType.storage);
+
+    if (cameraGranted && storageGranted) return;
+
+    final cameraPermanentlyDenied =
+        await manager.isPermissionPermanentlyDenied(PermissionType.camera);
+    final storagePermanentlyDenied =
+        await manager.isPermissionPermanentlyDenied(PermissionType.storage);
+
+    if (cameraPermanentlyDenied || storagePermanentlyDenied) {
+      throw const CloudMediaPermissionPermanentlyDeniedException();
     }
+
+    throw const CloudMediaPermissionDeniedException();
   }
 
   static Future<void> requestCameraPermission(BuildContext context, WidgetRef ref) async {

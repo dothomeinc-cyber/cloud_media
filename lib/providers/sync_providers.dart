@@ -35,7 +35,7 @@ final pendingMediaCountProvider = FutureProvider<int>((ref) async {
   return OfflineSyncService.getPendingCount();
 });
 
-/// Provider<bool> — read directly, never call .when() on this
+/// `Provider<bool>` — read directly, never call .when() on this
 final isMediaSyncingProvider = Provider<bool>((ref) {
   return ref.watch(syncStateProvider) == SyncState.syncing;
 });

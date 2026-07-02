@@ -27,12 +27,12 @@ final mediaItemProvider =
 
 /// Streams real-time updates for a single media item.
 ///
-/// Emits null-safe errors via [handleError] so the provider never crashes.
+/// Emits a nullable item type while preserving Riverpod's AsyncError state.
 final mediaStreamProvider =
     StreamProvider.family<CloudMediaItem?, String>((ref, mediaId) {
   return CloudMedia.provider
       .watchMedia(mediaId)
-      .handleError((_) => null);
+      .map<CloudMediaItem?>((item) => item);
 });
 
 /// Lists media filtered by [CloudMediaType].
