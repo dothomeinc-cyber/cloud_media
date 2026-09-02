@@ -44,12 +44,18 @@ class _PermissionAwareMediaPickerState
       switch (widget.mediaType) {
         case CloudMediaType.image:
         case CloudMediaType.video:
-          await PermissionService.requestMediaPermissions(
-              context, ref);
+          // MediaPickerScreen below only ever picks from the gallery —
+          // it never opens the camera — so only the type's read-access
+          // permission is needed, not camera.
+          await PermissionService.requestMediaReadPermission(
+              widget.mediaType, context, ref);
           break;
         case CloudMediaType.audio:
-          await PermissionService
-              .requestMicrophonePermission(context, ref);
+          // MediaPickerScreen selects existing audio files via
+          // FilePicker — it doesn't record — so this needs the
+          // audio-library read permission, not microphone.
+          await PermissionService.requestMediaReadPermission(
+              CloudMediaType.audio, context, ref);
           break;
         case CloudMediaType.file:
           await PermissionService.requestStoragePermission(
@@ -66,6 +72,7 @@ class _PermissionAwareMediaPickerState
             mediaType: widget.mediaType,
             maxCount: widget.maxCount,
             onMediaSelected: widget.onMediaSelected,
+            onError: _handlePickerScreenError,
           ),
         ),
       );
@@ -88,6 +95,32 @@ class _PermissionAwareMediaPickerState
       if (mounted) _showSnack('Error: $e');
     } finally {
       if (mounted) setState(() => _isRequesting = false);
+    }
+  }
+
+  /// Mirrors the catch clauses above, but for errors that surface from
+  /// *inside* the pushed [MediaPickerScreen] (its own permission
+  /// re-check, or the actual pick/upload call) rather than from this
+  /// widget's own pre-push permission request.
+  void _handlePickerScreenError(Object error) {
+    if (!mounted) return;
+    if (error is CloudMediaPermissionPermanentlyDeniedException) {
+      _showSnack(
+        widget.permissionMessage ??
+            'Permission permanently denied. Please enable it in Settings.',
+      );
+      // MediaPickerScreen already pops itself before this runs; opening
+      // settings here would race with that pop, so — unlike the
+      // pre-push path above — settings is left to PermissionService's
+      // own settings flow the next time the user retries, rather than
+      // opened automatically from this callback.
+    } else if (error is CloudMediaPermissionDeniedException) {
+      _showSnack(
+        widget.permissionMessage ??
+            'Permission denied. Please grant access to continue.',
+      );
+    } else {
+      _showSnack('Error: $error');
     }
   }
 

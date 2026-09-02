@@ -45,15 +45,13 @@ class CloudMediaUploadOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isSyncing = ref.watch(isMediaSyncingProvider);
-    final progress = ref.watch(syncProgressProvider);
-    final pendingAsync = ref.watch(pendingMediaCountProvider);
-    final isOffline = ref.watch(connectivityStatusProvider) == false;
-
-    final pending = pendingAsync.when(
-      data: (v) => v,
-      loading: () => 0,
-      error: (_, __) => 0,
-    );
+    final progress = ref.watch(syncProgressProvider).value ?? 0.0;
+    // pendingMediaCountProvider is a plain Provider<int> (re-exported
+    // from riverpod_offline_sync's own pendingItemsCountProvider) — no
+    // AsyncValue unwrapping needed, unlike the FutureProvider<int> this
+    // used to be.
+    final pending = ref.watch(pendingMediaCountProvider);
+    final isOffline = !(ref.watch(connectivityStatusProvider).value ?? true);
 
     // Invisible when nothing is happening
     if (!isSyncing && pending == 0 && !isOffline) {

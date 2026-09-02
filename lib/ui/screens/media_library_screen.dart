@@ -9,9 +9,13 @@ import '../widgets/media_grid.dart';
 
 class MediaLibraryScreen extends ConsumerStatefulWidget {
   const MediaLibraryScreen(
-      {super.key, this.type, this.onMediaTap});
+      {super.key, this.type, this.onMediaTap, this.showUploadControls = false});
   final CloudMediaType? type;
   final void Function(CloudMediaItem)? onMediaTap;
+
+  /// Passed through to [MediaGrid.showUploadControls] — set this to
+  /// `true` for a screen dedicated to managing in-flight uploads.
+  final bool showUploadControls;
 
   @override
   ConsumerState<MediaLibraryScreen> createState() =>
@@ -96,6 +100,7 @@ class _MediaLibraryScreenState
                   : MediaGrid(
                       mediaItems: _items,
                       onItemTap: widget.onMediaTap,
+                      showUploadControls: widget.showUploadControls,
                     ),
     );
   }

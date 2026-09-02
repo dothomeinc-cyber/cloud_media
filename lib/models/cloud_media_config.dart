@@ -47,10 +47,18 @@ class CloudMediaConfig {
   /// Whether to automatically compress images to WebP after picking. Default: true.
   final bool compressAutomatically;
 
-  /// Whether video compression is enabled. Default: false (pass-through).
+  /// Whether video compression is enabled. Default: false.
+  ///
+  /// Not yet implemented — [CompressionService.compressVideo] is
+  /// currently a documented pass-through regardless of this setting
+  /// (real video transcoding needs a native dependency this package
+  /// doesn't yet have). Kept for forward API compatibility once that
+  /// lands.
   final bool enableVideoCompression;
 
   /// Target bitrate for video compression in bits per second. Default: 1Mbps.
+  ///
+  /// Not yet read anywhere — see [enableVideoCompression]'s doc comment.
   final int videoCompressionBitrate;
 
   /// Whether to print debug logs. Default: false.

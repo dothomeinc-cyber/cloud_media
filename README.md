@@ -21,6 +21,7 @@ final items = await CloudMedia.pick(context: context);
 - **Flexible folder API** — `folder` + `subFolder` → clean Storage paths
 - **Auto thumbnails** — JPEG for images, WebP for videos
 - **Real-time status** — watch upload progress and sync state
+- **Upload control** — pause, resume, or cancel an in-flight upload
 - **Offline-first** — operations queue and retry on reconnect
 - **HLS streaming** — play `.m3u8` streams via `CloudHlsPlayerScreen`
 - **Viewer widget** — `CloudMediaViewer` handles every media type automatically
@@ -34,7 +35,7 @@ final items = await CloudMedia.pick(context: context);
 
 ```yaml
 dependencies:
-  cloud_media: ^1.0.0
+  cloud_media: ^1.1.0
 ```
 
 ```bash
@@ -214,7 +215,7 @@ CloudMedia.watch(item.id).listen((updated) {
 final watcher = CloudMediaWatcher();
 final synced = await watcher.watchUntil(
   item.id,
-  status: CloudMediaStatus.synced,
+  CloudMediaStatus.synced,
   timeout: const Duration(minutes: 2),
 );
 watcher.dispose();
@@ -275,7 +276,11 @@ await CloudMedia.deleteRef(item);
 
 // Show confirmation dialog, then delete if confirmed
 final deleted = await CloudMedia.showDeleteDialog(context, item);
-// Returns true if deleted, false if cancelled
+// Returns true if deleted, false if the user cancelled the dialog.
+// If the user confirms but the delete itself fails (network error,
+// permission issue, etc.), this rethrows rather than returning false —
+// wrap in try/catch if you need to handle that case separately from
+// a plain cancel.
 ```
 
 ---
@@ -306,6 +311,21 @@ final pending = await CloudMedia.getPendingCount();
 
 ---
 
+## Cleanup
+
+`CloudMedia` is designed to live for your app's whole lifetime — you don't
+normally need to call this. If your app needs a clean shutdown (e.g. before
+sign-out, or a test tearing down its own instance), `dispose()` cancels every
+active `watchMedia` subscription and closes the local cache's underlying
+storage. `CloudMedia.initialize()` must be called again before using
+`CloudMedia` further.
+
+```dart
+await CloudMedia.dispose();
+```
+
+---
+
 ## Image editing
 
 After picking, the editor opens automatically when `enableEditing: true`.
@@ -318,12 +338,14 @@ final editedPath = await CloudMediaImageEditor.edit(
   imagePath: originalPath,
 );
 
-// Preset crop dialogs
+// Preset crop dialogs — each returns a CroppedFile? (null if cancelled)
 final cropped = await CroppingDialog.show(
   context: context,
   imagePath: path,
   aspectRatio: 16 / 9,
 );
+if (cropped != null) print(cropped.path);
+
 final square = await CroppingDialog.showSquareCrop(context: context, imagePath: path);
 final circle = await CroppingDialog.showCircleCrop(context: context, imagePath: path);
 final wide   = await CroppingDialog.showWideScreenCrop(context: context, imagePath: path);
@@ -363,18 +385,32 @@ service.downloadProgress.listen((progress) {
 
 ## Permissions
 
-`cloud_media` requests permissions automatically when you call `CloudMedia.pick()`.
+`cloud_media` requests the correct permission automatically when you call
+`CloudMedia.pick()` — camera is never requested for a gallery/file pick,
+and each media type maps to its own granular Android 13+ permission
+(`READ_MEDIA_IMAGES` / `_VIDEO` / `_AUDIO`) rather than the legacy
+blanket storage permission, which the OS ignores on modern Android.
 
 To request permissions manually:
 
 ```dart
-// All media permissions at once
-await PermissionService.requestMediaPermissions(context, ref);
+// The read-access permission for a given media type — this is what
+// CloudMedia.pick() itself uses for gallery/file-picker flows (no camera
+// or microphone involved).
+await PermissionService.requestMediaReadPermission(
+  CloudMediaType.image, context, ref,
+);
+
+// Camera + the type's read permission together, for a flow that lets the
+// user either capture with the camera or pick an existing file.
+await PermissionService.requestMediaPermissions(
+  CloudMediaType.image, context, ref,
+);
 
 // Individual permissions
 await PermissionService.requestCameraPermission(context, ref);
-await PermissionService.requestStoragePermission(context, ref);
-await PermissionService.requestMicrophonePermission(context, ref);
+await PermissionService.requestStoragePermission(context, ref); // PDFs/files only
+await PermissionService.requestMicrophonePermission(context, ref); // recording only
 
 // Open device settings (if permanently denied)
 await PermissionService.openSettings(ref);
@@ -432,8 +468,64 @@ CloudMediaConfig(
   autoGenerateThumbnails: true,
   compressAutomatically: true,
   enableLogging: false,
+  customStorageBucket: null,     // use a non-default Firebase Storage bucket
+
+  // Not yet implemented — CompressionService.compressVideo is currently
+  // a pass-through regardless of these two. Kept for forward API
+  // compatibility once real video transcoding lands.
+  enableVideoCompression: false,
+  videoCompressionBitrate: 1000000,
 )
 ```
+
+---
+
+## Testing
+
+Firestore/Auth-dependent code (`FirebaseService` and anything built on it) is
+testable with real fakes — no live Firebase project needed:
+
+```dart
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
+
+final firestore = FakeFirebaseFirestore();
+final auth = MockFirebaseAuth(signedIn: true, mockUser: MockUser(uid: 'user_1'));
+final service = FirebaseService(config: const CloudMediaConfig(), firestore: firestore, auth: auth);
+await service.initialize();
+```
+
+Pause/resume/cancel is testable without Firebase at all — `StorageQueue`'s
+constructor eagerly touches `FirebaseStorage.instance`, but none of
+pause/resume/cancel/isUploading/isCancelled actually need it, so
+`OfflineSyncService.debugOverrideUploadControl` lets you swap in a plain
+in-memory `UploadControl` implementation instead:
+
+```dart
+class FakeUploadControl implements UploadControl {
+  final uploading = <String>{};
+  @override
+  void pauseUpload(String key) {}
+  @override
+  void resumeUpload(String key) {}
+  @override
+  void cancelUpload(String key) => uploading.remove(key);
+  @override
+  bool isUploading(String key) => uploading.contains(key);
+  @override
+  bool isCancelled(String key) => false;
+}
+
+OfflineSyncService.debugOverrideUploadControl(FakeUploadControl());
+```
+
+Riverpod providers built on `riverpod_offline_sync`'s own `StreamProvider`s
+(`syncStateProvider`, `connectivityStatusProvider`, the pending-items-derived
+ones) can be overridden directly in a plain `ProviderContainer`, with no
+`ProviderScope`/widget needed — see `test/providers/sync_providers_override_test.dart`
+in this package's own repo for a complete, working example, including the
+listener pattern needed to keep an auto-dispose provider alive while
+awaiting its first value.
 
 ---
 

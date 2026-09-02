@@ -35,22 +35,57 @@ class _CloudVideoState extends State<CloudVideo> {
     _init();
   }
 
+  @override
+  void didUpdateWidget(covariant CloudVideo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the parent rebuilds this widget in place with a different
+    // media item (e.g. a PageView or GridView recycling this State
+    // object at the same tree position without a distinguishing Key),
+    // the old controller is pointed at the wrong file/URL entirely —
+    // re-initialize for the new item rather than silently continuing
+    // to show the previous video.
+    final oldUrl = oldWidget.media.downloadUrl.isNotEmpty
+        ? oldWidget.media.downloadUrl
+        : oldWidget.media.localPath;
+    final newUrl = widget.media.downloadUrl.isNotEmpty
+        ? widget.media.downloadUrl
+        : widget.media.localPath;
+    if (oldUrl != newUrl) {
+      final oldController = _controller;
+      _controller = null;
+      _initialized = false;
+      _isPlaying = false;
+      oldController?.dispose();
+      _init();
+    }
+  }
+
   Future<void> _init() async {
     final url = widget.media.downloadUrl.isNotEmpty
         ? widget.media.downloadUrl
         : widget.media.localPath;
     if (url == null || url.isEmpty) return;
 
-    _controller = url.startsWith('/')
+    final controller = url.startsWith('/')
         ? VideoPlayerController.file(File(url))
         : VideoPlayerController.networkUrl(Uri.parse(url));
+    _controller = controller;
 
-    await _controller!.initialize();
+    await controller.initialize();
+    // This State may have moved on to a different media item (or been
+    // disposed) while the above await was in flight — if _controller no
+    // longer points at the controller this call created, a newer _init()
+    // call (from didUpdateWidget) has already superseded it, so back off
+    // instead of playing/setState-ing on behalf of the wrong item.
+    if (!mounted || !identical(_controller, controller)) {
+      if (!identical(_controller, controller)) controller.dispose();
+      return;
+    }
     if (widget.autoPlay) {
-      await _controller!.play();
+      await controller.play();
       _isPlaying = true;
     }
-    if (mounted) setState(() => _initialized = true);
+    setState(() => _initialized = true);
   }
 
   @override

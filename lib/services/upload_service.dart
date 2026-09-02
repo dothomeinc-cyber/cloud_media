@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,14 +7,13 @@ import '../models/cloud_media_type.dart';
 import '../utils/error_handler.dart';
 import '../utils/logger.dart';
 import '../utils/validators.dart';
+import 'offline_sync_service.dart';
 
 class UploadService {
   UploadService({required this.config});
 
   final CloudMediaConfig config;
   final ImagePicker _imagePicker = ImagePicker();
-  final Map<String, StreamController<UploadProgressData>> _progressControllers = {};
-  final Map<String, CancelToken> _cancelTokens = {};
 
   Future<List<PickedFile>> pickMedia({
     required CloudMediaType type,
@@ -57,15 +55,19 @@ class UploadService {
           final f = await FilePicker.pickFile(type: FileType.audio);
           if (f?.path != null) pickedFiles = [PickedFile(f!.path!)];
         } else {
+          // pickFiles() returns List<PlatformFile> directly (not a
+          // FilePickerResult wrapper) as of file_picker v12 — an empty
+          // list on cancellation, never null. Confirmed via a real
+          // compiler error against the actually-installed version
+          // (result.files / "The getter 'files' isn't defined for the
+          // type 'List<PlatformFile>'").
           final result = await FilePicker.pickFiles(type: FileType.audio);
-          if (result != null) {
-            pickedFiles = result.files
-                .take(maxCount)
-                .map((f) => f.path)
-                .whereType<String>()
-                .map(PickedFile.new)
-                .toList();
-          }
+          pickedFiles = result
+              .take(maxCount)
+              .map((f) => f.path)
+              .whereType<String>()
+              .map(PickedFile.new)
+              .toList();
         }
         break;
 
@@ -77,18 +79,19 @@ class UploadService {
           );
           if (f?.path != null) pickedFiles = [PickedFile(f!.path!)];
         } else {
+          // See the audio case above for why this no longer checks
+          // `result != null` — pickFiles() returns a non-nullable
+          // List<PlatformFile> as of file_picker v12.
           final result = await FilePicker.pickFiles(
             type: FileType.custom,
             allowedExtensions: ['pdf'],
           );
-          if (result != null) {
-            pickedFiles = result.files
-                .take(maxCount)
-                .map((f) => f.path)
-                .whereType<String>()
-                .map(PickedFile.new)
-                .toList();
-          }
+          pickedFiles = result
+              .take(maxCount)
+              .map((f) => f.path)
+              .whereType<String>()
+              .map(PickedFile.new)
+              .toList();
         }
         break;
     }
@@ -103,48 +106,53 @@ class UploadService {
     return pickedFiles;
   }
 
-  Stream<UploadProgressData> getUploadProgress(String uploadId) {
-    _progressControllers.putIfAbsent(
-        uploadId, () => StreamController<UploadProgressData>.broadcast());
-    return _progressControllers[uploadId]!.stream;
+  /// Live progress for [mediaId]'s upload. Emits until the upload
+  /// completes or fails, then the underlying stream closes.
+  Stream<UploadProgressData> getUploadProgress(String mediaId) {
+    return OfflineSyncService.watchUploadProgress(mediaId).map((p) {
+      final status = p.isComplete
+          ? 'completed'
+          : p.isFailed
+              ? 'failed'
+              : 'uploading';
+      return UploadProgressData(
+        progress: p.fraction,
+        uploaded: p.bytesTransferred,
+        total: p.totalBytes,
+        status: status,
+      );
+    });
   }
 
-  void updateProgress(String uploadId, double progress, int uploaded, int total) {
-    _progressControllers[uploadId]?.add(
-      UploadProgressData(progress: progress, uploaded: uploaded, total: total),
-    );
-  }
+  // ── Pause / resume / cancel ─────────────────────────────────────────────
+  //
+  // These act directly on the underlying Firebase UploadTask for
+  // [mediaId] via OfflineSyncService (backed by StorageQueue), so they
+  // only take effect once the upload has actually started — see
+  // OfflineSyncService's class doc for why file uploads sit behind both
+  // the offline queue (for durability while offline/queued) and
+  // StorageQueue (for live progress/pause/resume/cancel once in flight).
 
-  void completeUpload(String uploadId) {
-    _progressControllers[uploadId]?.add(const UploadProgressData(
-        progress: 1.0, uploaded: 100, total: 100, status: 'completed'));
-  }
+  /// Pause an in-flight upload. No-op if [mediaId] isn't currently uploading.
+  void pauseUpload(String mediaId) => OfflineSyncService.pauseUpload(mediaId);
 
-  void failUpload(String uploadId) {
-    _progressControllers[uploadId]?.add(const UploadProgressData(
-        progress: 0, uploaded: 0, total: 0, status: 'failed'));
-  }
+  /// Resume a paused upload. No-op if [mediaId] isn't currently uploading.
+  void resumeUpload(String mediaId) => OfflineSyncService.resumeUpload(mediaId);
 
-  void cancelUpload(String uploadId) {
-    _cancelTokens[uploadId]?.cancel();
-    _cancelTokens.remove(uploadId);
-    _progressControllers[uploadId]?.close();
-    _progressControllers.remove(uploadId);
-  }
+  /// Cancel an in-flight upload. No-op if [mediaId] isn't currently uploading.
+  void cancelUpload(String mediaId) => OfflineSyncService.cancelUpload(mediaId);
 
-  CancelToken createCancelToken(String uploadId) {
-    final token = CancelToken();
-    _cancelTokens[uploadId] = token;
-    return token;
-  }
+  /// True while [mediaId]'s upload is actively in flight (i.e. past the
+  /// offline queue and currently talking to Firebase Storage).
+  bool isUploading(String mediaId) => OfflineSyncService.isUploading(mediaId);
 
-  bool isCancelled(String uploadId) =>
-      _cancelTokens[uploadId]?.isCancelled ?? false;
+  /// True if [mediaId]'s upload was cancelled via [cancelUpload].
+  bool isCancelled(String mediaId) => OfflineSyncService.isUploadCancelled(mediaId);
 
   void dispose() {
-    for (final c in _progressControllers.values) { c.close(); }
-    _progressControllers.clear();
-    _cancelTokens.clear();
+    // Nothing to release here — StorageQueue (owned by OfflineSyncService,
+    // a package-wide singleton) outlives any single UploadService instance
+    // and manages its own in-flight upload state.
   }
 }
 
@@ -187,10 +195,4 @@ class UploadProgressData {
   final int uploaded;
   final int total;
   final String status;
-}
-
-class CancelToken {
-  bool _isCancelled = false;
-  void cancel() => _isCancelled = true;
-  bool get isCancelled => _isCancelled;
 }

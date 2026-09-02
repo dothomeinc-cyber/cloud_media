@@ -8,8 +8,18 @@ import '../models/cloud_media_type.dart';
 /// Uses the already-initialized [CloudMediaProvider] from [CloudMedia],
 /// so the user's config (imageQuality, maxSelection, etc.) is honoured.
 /// Throws [StateError] if [CloudMedia.initialize] has not been called yet.
-final mediaListProvider =
-    FutureProvider.family<List<CloudMediaItem>, String>((ref, userId) async {
+///
+/// This is scoped to whichever user is currently signed in via
+/// `FirebaseAuth.instance.currentUser` — there's no way to query another
+/// user's media anywhere in this package (every Firestore path is built
+/// from the current auth user's uid), so this is a plain [FutureProvider],
+/// not a `.family`. It previously took an ignored `String userId` family
+/// parameter that looked like it selected which user's media to list but
+/// never actually did anything with it — always returning the current
+/// user's media regardless of what was passed in, which is actively
+/// misleading for exactly the kind of multi-user use case that parameter
+/// implied was supported.
+final mediaListProvider = FutureProvider<List<CloudMediaItem>>((ref) async {
   return CloudMedia.provider.listMedia();
 });
 

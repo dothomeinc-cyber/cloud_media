@@ -8,20 +8,38 @@ import '../utils/file_utils.dart';
 import '../utils/logger.dart';
 
 class CacheService {
-  CacheService({required this.config});
+  /// [box] and [cacheDir] are injectable seams for tests (an in-memory
+  /// or real-temp-dir Hive box, and a real `Directory` under
+  /// `Directory.systemTemp`) — real app code should leave them null
+  /// and get the real Hive box + app documents directory via
+  /// [initialize], exactly as before this became injectable.
+  CacheService({required this.config, Box<Map>? box, Directory? cacheDir})
+      : _injectedBox = box,
+        _injectedDir = cacheDir;
 
   final CloudMediaConfig config;
+  final Box<Map>? _injectedBox;
+  final Directory? _injectedDir;
   late Box<Map> _box;
   late Directory _dir;
   bool _initialized = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
-    await Hive.initFlutter();
-    _box = await Hive.openBox<Map>(FileConstants.cacheBoxName);
 
-    final appDir = await getApplicationDocumentsDirectory();
-    _dir = Directory('${appDir.path}/${FileConstants.cacheDirectory}');
+    if (_injectedBox != null) {
+      _box = _injectedBox;
+    } else {
+      await Hive.initFlutter();
+      _box = await Hive.openBox<Map>(FileConstants.cacheBoxName);
+    }
+
+    if (_injectedDir != null) {
+      _dir = _injectedDir;
+    } else {
+      final appDir = await getApplicationDocumentsDirectory();
+      _dir = Directory('${appDir.path}/${FileConstants.cacheDirectory}');
+    }
     if (!await _dir.exists()) await _dir.create(recursive: true);
 
     await _cleanExpired();

@@ -20,8 +20,18 @@ class DateFormatter {
     return 'Just now';
   }
 
+  /// Formats as `MM:SS` for durations under an hour, `H:MM:SS` at or
+  /// above an hour. Without the hour component, a duration ≥60 minutes
+  /// would silently wrap (`duration.inMinutes.remainder(60)`), showing
+  /// e.g. "05:30" for what is actually 1 hour 5 minutes 30 seconds.
   static String formatDuration(Duration duration) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(duration.inMinutes.remainder(60))}:${two(duration.inSeconds.remainder(60))}';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${two(minutes)}:${two(seconds)}';
+    }
+    return '${two(minutes)}:${two(seconds)}';
   }
 }

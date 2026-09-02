@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/cloud_media_config.dart';
+import '../utils/error_handler.dart';
 import '../utils/logger.dart';
 
 class CompressionService {
@@ -11,12 +12,21 @@ class CompressionService {
 
   /// Compress image to WebP (spec: quality 85, 40–80% reduction).
   /// Returns compressed path, or original if compression fails.
+  ///
+  /// Throws [CloudMediaCompressionException] if [filePath] doesn't exist
+  /// at all — returning it unchanged in that case (as the "compression
+  /// failed, use the original" fallback does) would hand the caller a
+  /// path that was never valid to begin with, which would only surface
+  /// much later and more confusingly, at the Firebase upload stage.
   Future<String> compressImage(String filePath,
       {int? quality}) async {
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) return filePath;
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw CloudMediaCompressionException(
+          'Cannot compress: file does not exist at $filePath');
+    }
 
+    try {
       final tempDir = await getTemporaryDirectory();
       final targetPath =
           '${tempDir.path}/cm_${DateTime.now().millisecondsSinceEpoch}.webp';

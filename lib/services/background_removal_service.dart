@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:native_cutout/native_cutout.dart';
 import 'package:path_provider/path_provider.dart';
+import '../utils/error_handler.dart';
 import '../utils/logger.dart';
 
 /// On-device background removal using native_cutout.
@@ -11,12 +12,22 @@ import '../utils/logger.dart';
 class BackgroundRemovalService {
   const BackgroundRemovalService();
 
+  /// Removes the background from the image at [imagePath], returning the
+  /// path to a new transparent PNG.
+  ///
+  /// Throws [CloudMediaInvalidInputException] if [imagePath] is empty or
+  /// doesn't exist — returning it unchanged in that case (as the "native
+  /// removal failed, fall back to the original" path further down does)
+  /// would hand the caller a path that was never valid to begin with.
+  /// This mirrors the same fix applied to
+  /// [CompressionService.compressImage] for the same reason.
   Future<String> removeBackground(
     String imagePath, {
     bool cropToSubject = true,
   }) async {
     if (imagePath.trim().isEmpty || !File(imagePath).existsSync()) {
-      return imagePath;
+      throw CloudMediaInvalidInputException(
+          'Cannot remove background: file does not exist at "$imagePath"');
     }
 
     try {

@@ -1,6 +1,6 @@
 name: cloud_media
 description: A complete Firebase-native media management Flutter package. One line to pick. Everything else automated.
-version: 1.0.3
+version: 2.0.0
 homepage: https://github.com/yourusername/cloud_media
 repository: https://github.com/yourusername/cloud_media
 
@@ -16,7 +16,10 @@ dependencies:
   firebase_core: ^4.10.0
   firebase_auth: ^6.5.2
   firebase_storage: ^13.4.2
-  cloud_firestore: ^6.5.0
+  # Bumped from ^6.5.0: fake_cloud_firestore (dev dependency, below)
+  # requires cloud_firestore >=6.7.1 — confirmed against its published
+  # compatibility table on pub.dev, not guessed.
+  cloud_firestore: ^6.7.1
 
   # Media
   image_picker: ^1.1.2
@@ -28,8 +31,10 @@ dependencies:
   flutter_image_compress: ^2.3.0
   image: ^4.2.0
 
-  # Background removal
-  image_background_remover: ^2.0.0
+  # Background removal (native_cutout does the actual work — see
+  # background_removal_service.dart. image_background_remover was
+  # previously declared here too but never imported anywhere; removed.)
+  native_cutout: ^0.3.0
 
   # Video thumbnail
   flutter_video_thumbnail_plus: ^1.0.6
@@ -39,7 +44,7 @@ dependencies:
   cached_network_image: ^3.4.1
 
   # Offline sync
-  riverpod_offline_sync: ^1.0.6
+  riverpod_offline_sync: ^2.0.0
   hive_flutter: ^1.1.0
   synchronized: ^3.1.0
 
@@ -47,11 +52,8 @@ dependencies:
   path_provider: ^2.1.4
   path: ^1.9.0
 
-  # Connectivity
-  connectivity_plus: ^7.1.1
-
   # Permissions
-  permission_handler_package: ^2.0.2
+  permission_handler_package: ^3.0.0
 
   # Utilities
   uuid: ^4.5.1
@@ -63,10 +65,8 @@ dependencies:
   # State management
   flutter_riverpod: ^3.3.2-dev.2
   flutter_screenutil: ^5.9.3
-  image_cropper: ^12.2.1
   flutter_hls_video_player: ^1.0.1
   flutter_img_editor: ^0.0.7
-  native_cutout: ^0.2.0
 
 dev_dependencies:
   flutter_test:
@@ -74,8 +74,29 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   mockito: ^5.4.4
   build_runner: ^2.4.13
+  # Real in-memory Firestore/Auth fakes for widget & unit tests — these
+  # implement the actual cloud_firestore/firebase_auth interfaces
+  # correctly (DocumentSnapshot has enough surface area that a
+  # hand-written Mock risks missing/misimplementing something a real
+  # compiler run would catch) rather than needing to hand-mock those
+  # types. Versions confirmed against each package's published
+  # pub.dev compatibility table, not guessed — fake_cloud_firestore
+  # 4.2.0 needs cloud_firestore >=6.7.1 (see the bumped pin above);
+  # firebase_auth_mocks 0.15.0 pairs with firebase_auth ^6.0.0, which
+  # this package's firebase_auth ^6.5.2 satisfies.
+  fake_cloud_firestore: ^4.2.0
+  firebase_auth_mocks: ^0.15.2
+  # hive_flutter re-exports hive's core types (Box, etc.), but hive
+  # itself needs to be a direct dependency to import it in tests —
+  # hive.Hive.init(tempDir) + Hive.openBox works in plain Dart with no
+  # Flutter platform channels, unlike hive_flutter's initFlutter()
+  # (which calls path_provider internally), so this lets CacheService
+  # be tested against a real temp-directory box instead of only being
+  # reachable via integration tests on a real device.
+  hive: ^2.2.3
 
 flutter:
+  uses-material-design: true
   assets:
     - assets/icons/
 

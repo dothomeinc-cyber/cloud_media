@@ -4,7 +4,9 @@ import '../models/cloud_media_item.dart';
 import '../models/cloud_media_type.dart';
 import '../models/compression_profile.dart';
 import '../providers/cloud_media_provider.dart';
+import '../services/upload_service.dart';
 import '../ui/dialogs/confirmation_dialog.dart';
+import '../utils/error_handler.dart';
 
 /// The primary public API for the CloudMedia package.
 ///
@@ -30,6 +32,17 @@ class CloudMedia {
 
   /// Initialize CloudMedia. Call once in main() after Firebase.initializeApp().
   ///
+  /// Safe to call more than once — subsequent calls are a no-op, matching
+  /// the guarded pattern `CloudMediaProvider.initialize()`,
+  /// `OfflineSyncService.initialize()`, and `PermissionHandler.initialize()`
+  /// all already use. This avoids silently replacing the active
+  /// `CloudMediaProvider` (and the services it constructs) out from under
+  /// anything already holding a reference to the config or provider — e.g.
+  /// `UploadNotifier` reads `CloudMedia.config` once, at construction time,
+  /// so a second `initialize()` call with a different config would
+  /// otherwise leave already-constructed instances silently using the old
+  /// one.
+  ///
   /// ```dart
   /// await CloudMedia.initialize(
   ///   config: const CloudMediaConfig(imageQuality: 85),
@@ -38,6 +51,7 @@ class CloudMedia {
   static Future<void> initialize({
     CloudMediaConfig config = const CloudMediaConfig(),
   }) async {
+    if (_initialized) return;
     _config = config;
     _provider = CloudMediaProvider(config: _config);
     await _provider!.initialize();
@@ -73,6 +87,16 @@ class CloudMedia {
   ///
   /// If [compressionProfile] is set it overrides the [CloudMediaConfig]
   /// quality and thumbnail size for this pick only.
+  ///
+  /// Requests the OS permission needed to read [type] from the gallery/
+  /// file system before picking (camera permission is not requested —
+  /// this always picks from the gallery/file system, never the camera).
+  /// Throws [CloudMediaPermissionDeniedException] if denied, or
+  /// [CloudMediaPermissionPermanentlyDeniedException] if permanently
+  /// denied — catch these to show your own messaging, or let them
+  /// propagate. Passing [context] lets the permission package show its
+  /// own explanation/settings dialogs; without one, the permission is
+  /// still requested, just without any dialog.
   ///
   /// Storage path layout:
   ///   `users/{uid}/media/{folder}/{subFolder}/{mediaId}/{fileName}`
@@ -160,10 +184,21 @@ class CloudMedia {
 
   /// Show a confirmation dialog then delete if confirmed.
   ///
-  /// Returns true if deleted, false if cancelled.
+  /// Returns `true` if the user confirmed and the delete call succeeded,
+  /// `false` if the user cancelled the dialog. If the user confirms but
+  /// the delete itself fails (network error, permission issue, etc.),
+  /// this rethrows that exception rather than returning `false` —
+  /// swallowing a real failure into the same boolean as "user cancelled"
+  /// would hide it from the caller. Wrap the call in your own
+  /// try/catch if you want to show your own error UI for that case:
   ///
   /// ```dart
-  /// final deleted = await CloudMedia.showDeleteDialog(context, item);
+  /// try {
+  ///   final deleted = await CloudMedia.showDeleteDialog(context, item);
+  ///   if (deleted) { /* removed from your own list, etc. */ }
+  /// } catch (e) {
+  ///   // deletion was confirmed but failed
+  /// }
   /// ```
   static Future<bool> showDeleteDialog(
     BuildContext context,
@@ -211,6 +246,43 @@ class CloudMedia {
     return _provider!.getPendingCount();
   }
 
+  /// Live upload progress for [mediaId]. Emits until the upload completes
+  /// or fails, then the stream closes.
+  ///
+  /// ```dart
+  /// CloudMedia.watchUploadProgress(item.id).listen((p) {
+  ///   print('${(p.progress * 100).toStringAsFixed(0)}%');
+  /// });
+  /// ```
+  static Stream<UploadProgressData> watchUploadProgress(String mediaId) {
+    _ensure();
+    return _provider!.watchUploadProgress(mediaId);
+  }
+
+  /// Pause an in-flight upload. No-op if [mediaId] isn't currently uploading.
+  static void pauseUpload(String mediaId) {
+    _ensure();
+    _provider!.pauseUpload(mediaId);
+  }
+
+  /// Resume a paused upload. No-op if [mediaId] isn't currently uploading.
+  static void resumeUpload(String mediaId) {
+    _ensure();
+    _provider!.resumeUpload(mediaId);
+  }
+
+  /// Cancel an in-flight upload. No-op if [mediaId] isn't currently uploading.
+  static void cancelUpload(String mediaId) {
+    _ensure();
+    _provider!.cancelUpload(mediaId);
+  }
+
+  /// True while [mediaId]'s upload is actively talking to Firebase Storage.
+  static bool isUploading(String mediaId) {
+    _ensure();
+    return _provider!.isUploading(mediaId);
+  }
+
   /// Clear all local disk cache.
   ///
   /// ```dart
@@ -231,6 +303,25 @@ class CloudMedia {
   static Future<int> cacheSize() async {
     _ensure();
     return _provider!.getCacheSize();
+  }
+
+  /// Cancels all active [watchMedia]/[watchUploadProgress] subscriptions
+  /// and closes the local cache's underlying storage.
+  ///
+  /// Call this if your app needs a clean shutdown (e.g. before the user
+  /// signs out, or when a test tears down its own `CloudMedia` instance)
+  /// — otherwise `CloudMedia` is designed to live for the app's whole
+  /// lifetime and this never needs to be called. After calling this,
+  /// [initialize] must be called again before using `CloudMedia` further.
+  ///
+  /// ```dart
+  /// await CloudMedia.dispose();
+  /// ```
+  static Future<void> dispose() async {
+    if (_provider == null) return;
+    await _provider!.dispose();
+    _provider = null;
+    _initialized = false;
   }
 
   static void _ensure() {

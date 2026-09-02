@@ -22,6 +22,7 @@ class CloudAudio extends StatefulWidget {
 class _CloudAudioState extends State<CloudAudio> {
   final _player = AudioPlayer();
   bool _isPlaying = false;
+  bool _sourceSet = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
 
@@ -31,26 +32,79 @@ class _CloudAudioState extends State<CloudAudio> {
     _init();
   }
 
+  @override
+  void didUpdateWidget(covariant CloudAudio oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Same reasoning as CloudVideo.didUpdateWidget: a parent list/grid
+    // can reuse this State at the same tree position for a different
+    // media item without a distinguishing Key — re-source rather than
+    // keep playing/showing the previous item's audio.
+    final oldUrl = oldWidget.media.downloadUrl.isNotEmpty
+        ? oldWidget.media.downloadUrl
+        : oldWidget.media.localPath;
+    final newUrl = widget.media.downloadUrl.isNotEmpty
+        ? widget.media.downloadUrl
+        : widget.media.localPath;
+    if (oldUrl != newUrl) {
+      _initGeneration++;
+      _sourceSet = false;
+      _player.stop();
+      setState(() {
+        _isPlaying = false;
+        _duration = Duration.zero;
+        _position = Duration.zero;
+      });
+      _init();
+    }
+  }
+
+  // Bumped on every didUpdateWidget re-source; a stale _init() call that
+  // resolves after a newer one has started can check this to tell it's
+  // been superseded and back off, instead of applying setState for the
+  // wrong media item once its await completes.
+  int _initGeneration = 0;
+
   Future<void> _init() async {
+    final generation = _initGeneration;
     final url = widget.media.downloadUrl.isNotEmpty
         ? widget.media.downloadUrl
         : widget.media.localPath;
     if (url == null || url.isEmpty) return;
 
-    await _player.setSourceUrl(url);
+    // audioplayers' setSourceUrl always constructs a UrlSource, which is
+    // not guaranteed to correctly handle a bare local filesystem path
+    // (as opposed to an http(s) URL) consistently across platforms —
+    // setSourceDeviceFile is the API actually documented for local
+    // files. Same local/remote split already used in CloudVideo/CloudImage.
+    if (url.startsWith('/')) {
+      await _player.setSourceDeviceFile(url);
+    } else {
+      await _player.setSourceUrl(url);
+    }
+    if (!mounted || generation != _initGeneration) return;
+    _sourceSet = true;
+
     _player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
+      if (mounted && generation == _initGeneration) {
+        setState(() => _duration = d);
+      }
     });
     _player.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
+      if (mounted && generation == _initGeneration) {
+        setState(() => _position = p);
+      }
     });
     _player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _isPlaying = false);
+      if (mounted && generation == _initGeneration) {
+        setState(() => _isPlaying = false);
+      }
     });
 
     if (widget.autoPlay) {
       await _player.resume();
-      if (mounted) setState(() => _isPlaying = true);
+      if (mounted && generation == _initGeneration) {
+        setState(() => _isPlaying = true);
+      }
     }
   }
 
@@ -61,6 +115,7 @@ class _CloudAudioState extends State<CloudAudio> {
   }
 
   Future<void> _toggle() async {
+    if (!_sourceSet) return;
     _isPlaying
         ? await _player.pause()
         : await _player.resume();

@@ -63,12 +63,15 @@ class _CloudHlsPlayerScreenState extends State<CloudHlsPlayerScreen> {
   void initState() {
     super.initState();
     _controller = FlutterHLSVideoPlayerController();
-    if (widget.autoPlay) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _controller.loadHlsVideo(widget.hlsUrl);
-        _controller.play();
-      });
-    }
+    // Load unconditionally — autoPlay should only control whether
+    // playback starts immediately, not whether the stream loads at all.
+    // With the old `if (widget.autoPlay)` guard, autoPlay: false left
+    // the controller permanently unloaded (a black screen with nothing
+    // to play), since loadHlsVideo is the only call that loads the URL.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.loadHlsVideo(widget.hlsUrl);
+      if (widget.autoPlay) _controller.play();
+    });
   }
 
   @override
@@ -216,12 +219,12 @@ class _CloudHlsPlayerState extends State<CloudHlsPlayer> {
   void initState() {
     super.initState();
     _controller = FlutterHLSVideoPlayerController();
-    if (widget.autoPlay) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _controller.loadHlsVideo(widget.url);
-        _controller.play();
-      });
-    }
+    // Same fix as CloudHlsPlayerScreen: load unconditionally, only gate
+    // whether playback auto-starts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.loadHlsVideo(widget.url);
+      if (widget.autoPlay) _controller.play();
+    });
   }
 
   @override

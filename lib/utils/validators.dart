@@ -45,7 +45,14 @@ class Validators {
 
   static void validateSelectionCount(int count, {int? maxAllowed}) {
     if (count > FileConstants.hardMaxSelection) {
-      throw const CloudMediaSelectionLimitExceededException();
+      // Built from the real constant rather than relying on
+      // CloudMediaSelectionLimitExceededException's const default
+      // (which has to hardcode a literal, since Dart's const defaults
+      // can't interpolate — see that class's own doc comment) — this
+      // throw site can pass the real number directly instead.
+      throw CloudMediaSelectionLimitExceededException(
+          'Selection limit exceeded. Maximum is '
+          '${FileConstants.hardMaxSelection} files.');
     }
     final limit = maxAllowed ?? FileConstants.defaultMaxSelection;
     if (count > limit) {

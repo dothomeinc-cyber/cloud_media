@@ -18,28 +18,56 @@ import '../utils/logger.dart';
 /// Uses [FirebaseAuth] to identify the current user.
 class FirebaseService {
   /// Creates a [FirebaseService] with the given [config].
-  FirebaseService({required this.config});
+  ///
+  /// [firestore], [storage], and [auth] are injectable seams for tests
+  /// (e.g. `fake_cloud_firestore`, `firebase_auth_mocks`, or a real/fake
+  /// `FirebaseStorage` if you have one) — real app code should leave
+  /// them null and get the real Firebase singletons, exactly as before
+  /// this became injectable. Only [storage] is lazy (see [_storage]):
+  /// leaving it null is safe even in a test that never touches Firebase
+  /// Storage at all, since nothing eagerly constructs
+  /// `FirebaseStorage.instance` — that only happens the first time
+  /// [downloadMedia] (the only method that uses it) actually runs.
+  FirebaseService({
+    required this.config,
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+    FirebaseAuth? auth,
+  })  : _injectedFirestore = firestore,
+        _injectedStorage = storage,
+        _auth = auth ?? FirebaseAuth.instance;
 
   /// The configuration for this service.
   final CloudMediaConfig config;
 
+  final FirebaseFirestore? _injectedFirestore;
+  final FirebaseStorage? _injectedStorage;
+  final FirebaseAuth _auth;
+
   late FirebaseFirestore _firestore;
-  late FirebaseStorage _storage;
   bool _initialized = false;
+
+  // Lazy, not eagerly constructed in initialize() — FirebaseStorage.instance
+  // requires a real Firebase.initializeApp() to have run, which a test
+  // exercising only Firestore-based methods (no _injectedStorage given)
+  // shouldn't need just to call initialize() at all. Only downloadMedia
+  // actually touches this.
+  FirebaseStorage get _storage =>
+      _injectedStorage ??
+      (config.customStorageBucket != null
+          ? FirebaseStorage.instanceFor(bucket: config.customStorageBucket)
+          : FirebaseStorage.instance);
 
   /// Initialize Firebase instances. Must be called before any other method.
   Future<void> initialize() async {
     if (_initialized) return; // guard against concurrent / repeated calls
-    _firestore = FirebaseFirestore.instance;
-    _storage = config.customStorageBucket != null
-        ? FirebaseStorage.instanceFor(bucket: config.customStorageBucket)
-        : FirebaseStorage.instance;
+    _firestore = _injectedFirestore ?? FirebaseFirestore.instance;
     _initialized = true;
     CloudLogger.info('FirebaseService ready. User: ${currentUser?.uid}');
   }
 
   /// The currently authenticated Firebase user, or null if not signed in.
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  User? get currentUser => _auth.currentUser;
 
   String get _uid {
     final uid = currentUser?.uid;
@@ -77,7 +105,21 @@ class FirebaseService {
   }) async {
     Query query = _firestore
         .collection(FirestorePaths.userMedia(_uid))
-        .where('deletedAt', isEqualTo: null)
+        // isNull: true, not isEqualTo: null — the latter is documented
+        // by the FlutterFire team as a no-op (equivalent to no filter
+        // at all: "passing null to isEqualTo is redundant since it's
+        // the default value"), which means this was silently returning
+        // *every* item including soft-deleted ones, on real Firestore
+        // too, not just in tests. Found via fake_cloud_firestore
+        // throwing on the unsupported isEqualTo: null form during a
+        // real test run — that's the one place this bug wasn't invisible.
+        //
+        // NOTE for production: this where(isNull) + orderBy(a different
+        // field) combination needs a composite index on real Firestore
+        // — the console will show a direct link to create it the first
+        // time this query runs against a real project and hasn't been
+        // indexed yet.
+        .where('deletedAt', isNull: true)
         .orderBy('createdAt', descending: true)
         .limit(limit);
 

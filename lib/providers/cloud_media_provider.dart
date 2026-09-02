@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:permission_handler_package/permission_handler_package.dart';
 import 'package:uuid/uuid.dart';
 import '../models/cloud_media_config.dart';
 import '../models/cloud_media_item.dart';
@@ -11,10 +12,12 @@ import '../services/background_removal_service.dart';
 import '../services/compression_service.dart';
 import '../services/firebase_service.dart';
 import '../services/offline_sync_service.dart';
+import '../services/permission_service.dart';
 import '../services/thumbnail_service.dart';
 import '../services/upload_service.dart';
 import '../ui/screens/editor_screen.dart';
 import '../ui/screens/review_screen.dart';
+import '../utils/error_handler.dart';
 import '../utils/logger.dart';
 
 class CloudMediaProvider {
@@ -36,8 +39,28 @@ class CloudMediaProvider {
   Future<void> initialize() async {
     if (_initialized) return;
 
+    // Apply the config's logging preference before anything else logs —
+    // enableLogging was previously defined on CloudMediaConfig but never
+    // actually wired to CloudLogger, so every app got CloudLogger's
+    // default of always-on regardless of what they configured.
+    CloudLogger.isEnabled = config.enableLogging;
+
+    // Same story as enableLogging above: uploadTimeout was fully
+    // modeled on CloudMediaConfig (constructor, copyWith, toJson) but
+    // never actually applied anywhere, so a configured timeout
+    // silently did nothing — uploads could hang indefinitely.
+    OfflineSyncService.uploadTimeout = config.uploadTimeout;
+
     // NOTE: Firebase + riverpod_offline_sync must be initialized by the host app.
     await OfflineSyncService.initialize();
+
+    // Required for PermissionManager().markInitialized() to have run
+    // before _ensureReadPermission's first real call — without it,
+    // registerNavigatorKey/setCurrentContext calls the host app makes
+    // queue up in PermissionManager's _pendingCallbacks indefinitely,
+    // and requestPermissionWithExplanation's own one-tick fallback
+    // delay isn't a guarantee this has actually completed by then.
+    await PermissionService.initialize();
 
     _firebaseService = FirebaseService(config: config);
     _uploadService = UploadService(config: config);
@@ -60,13 +83,66 @@ class CloudMediaProvider {
     }
   }
 
+  /// Requests whatever read-access permission is needed to pick [type]
+  /// from the gallery/file system, using
+  /// [PermissionService.readPermissionFor]'s type→permission mapping —
+  /// the same one [PermissionService.requestMediaReadPermission] uses —
+  /// so both pick paths (this one, used by `CloudMedia.pick()`; and the
+  /// standalone `MediaPickerScreen` / `PermissionAwareMediaPicker`
+  /// widgets) can never silently diverge on which permission gets
+  /// requested for which media type.
+  ///
+  /// This deliberately talks to [PermissionManager] directly rather than
+  /// through `permissionActionProvider` (which needs a `WidgetRef`) —
+  /// [CloudMediaProvider] is a plain Dart class with no Riverpod `ref`
+  /// of its own, by design, so `CloudMedia.pick()` keeps working from
+  /// call sites that only have a `BuildContext` (or none at all). Both
+  /// paths ultimately reach the same [PermissionManager] singleton, so
+  /// permission state and its 3-second cache stay consistent either way
+  /// — but the UI differs: this path shows [PermissionManager]'s own
+  /// popup dialogs (via [PermissionManager.requestPermissionWithExplanation]),
+  /// while `PermissionAwareMediaPicker` / `MediaPickerScreen` show the
+  /// canonical full-screen flow from `permissionActionProvider`. If your
+  /// app wants the full-screen flow for `CloudMedia.pick()` too, drive
+  /// permissions yourself via `PermissionService` before calling
+  /// `CloudMedia.pick()`, which will then see the permission already
+  /// granted and skip this step's own dialog entirely.
+  ///
+  /// Throws [CloudMediaPermissionDeniedException] or
+  /// [CloudMediaPermissionPermanentlyDeniedException] on denial —
+  /// [PermissionManager.requestPermissionWithExplanation] already shows
+  /// its own explanation / permanently-denied dialogs when [context] is
+  /// supplied (or falls back to whatever context the manager has been
+  /// given via `registerNavigatorKey`/`setCurrentContext`; with neither,
+  /// it still requests the OS permission, just without any dialog).
+  Future<void> _ensureReadPermission(
+    CloudMediaType type,
+    BuildContext? context,
+  ) async {
+    final permission = PermissionService.readPermissionFor(type);
+
+    final result = await PermissionManager().requestPermissionWithExplanation(
+      permission,
+      context: context,
+    );
+
+    if (result.isPermanentlyDenied) {
+      throw const CloudMediaPermissionPermanentlyDeniedException();
+    }
+    // See PermissionService._throwIfDenied's comment: isSufficient
+    // treats limited/provisional access as usable rather than a denial.
+    if (!result.isSufficient) {
+      throw const CloudMediaPermissionDeniedException();
+    }
+  }
+
   // ── Pick ────────────────────────────────────────────────────────────────────
 
   Future<List<CloudMediaItem>> pickMedia({
     required CloudMediaType type,
     required int maxCount,
     BuildContext? context,
-    bool enableEditing = true,
+    bool enableEditing = false,
     bool enableBackgroundRemoval = false,
     bool showPreview = false,
     String? folder,
@@ -75,6 +151,8 @@ class CloudMediaProvider {
   }) async {
     _ensureInit();
     try {
+      await _ensureReadPermission(type, context);
+
       final pickedFiles =
           await _uploadService.pickMedia(type: type, maxCount: maxCount);
       final uid = _firebaseService.currentUser?.uid ?? '';
@@ -175,7 +253,7 @@ class CloudMediaProvider {
         await OfflineSyncService.createMediaMetadata(
           userId: uid2,
           mediaId: mediaItem.id,
-          metadata: mediaItem.toFirestore(),
+          documentData: mediaItem.toFirestore(),
           priority: QueuePriority.high,
         );
 
@@ -223,6 +301,17 @@ class CloudMediaProvider {
   }
 
 
+  /// Sanitizes a caller-supplied folder/subFolder path segment for safe
+  /// use in a Firestore document path / Storage object path.
+  ///
+  /// Path traversal is neutralized character-by-character (`.` isn't in
+  /// the allowed set, so `..` becomes `__`, not a real `..` segment —
+  /// verified this can't reconstruct a traversal even across multiple
+  /// `/`-separated parts). Also caps the sanitized result's length,
+  /// since Firestore/Storage both enforce their own real path-length
+  /// limits server-side — better to reject an absurdly long
+  /// caller-supplied folder name here, clearly, than let it fail later
+  /// as an opaque Firestore/Storage error.
   String? _sanitizeFolder(String? folder) {
     final raw = folder?.trim();
     if (raw == null || raw.isEmpty) return null;
@@ -234,7 +323,13 @@ class CloudMediaProvider {
         .where((part) => part.isNotEmpty)
         .join('/');
 
-    return cleaned.isEmpty ? null : cleaned;
+    if (cleaned.isEmpty) return null;
+    // 200 chars leaves ample room for the rest of a storage path
+    // (users/$uid/media/$folder/$subFolder/$mediaId/$fileName) to stay
+    // well under Storage's/Firestore's own limits even for a long uid
+    // or file name.
+    const maxLength = 200;
+    return cleaned.length > maxLength ? cleaned.substring(0, maxLength) : cleaned;
   }
 
   String _fileExtension(String path) {
@@ -254,6 +349,7 @@ class CloudMediaProvider {
     if (lower.endsWith('.mov')) return 'video/quicktime';
     if (lower.endsWith('.mp3')) return 'audio/mpeg';
     if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.m4a')) return 'audio/m4a';
     if (lower.endsWith('.pdf')) return 'application/pdf';
     return fallback ?? 'application/octet-stream';
   }
@@ -281,14 +377,34 @@ class CloudMediaProvider {
 
   // ── Watch ───────────────────────────────────────────────────────────────────
 
+  /// Watches [mediaId], sharing one underlying Firestore listener across
+  /// repeated calls for the same id (so several widgets watching the
+  /// same item don't each open their own listener).
+  ///
+  /// If the underlying Firestore listener terminates with an error —
+  /// which it does permanently after errors like permission-denied
+  /// (Firestore's own documented behavior: "After an error, the
+  /// listener will not receive any more events" — this is genuinely
+  /// reachable here, e.g. the user signs out mid-watch and the security
+  /// rules that granted access are gone) — the cached entry is torn
+  /// down so the *next* [watchMedia] call for the same id establishes a
+  /// fresh listener instead of permanently returning a dead stream.
+  /// Already-subscribed listeners on the stream still see the error via
+  /// [StreamController.addError] as before; this only affects future
+  /// calls to [watchMedia].
   Stream<CloudMediaItem> watchMedia(String mediaId) {
     _ensureInit();
     if (!_watchControllers.containsKey(mediaId)) {
       final controller = StreamController<CloudMediaItem>.broadcast();
       _watchControllers[mediaId] = controller;
-      final sub = _firebaseService
-          .watchMedia(mediaId)
-          .listen(controller.add, onError: controller.addError);
+      final sub = _firebaseService.watchMedia(mediaId).listen(
+        controller.add,
+        onError: (Object error, StackTrace stackTrace) {
+          controller.addError(error, stackTrace);
+          _watchSubscriptions.remove(mediaId)?.cancel();
+          _watchControllers.remove(mediaId);
+        },
+      );
       _watchSubscriptions[mediaId] = sub;
     }
     return _watchControllers[mediaId]!.stream;
@@ -349,6 +465,41 @@ class CloudMediaProvider {
     return OfflineSyncService.getPendingCount();
   }
 
+  // ── Upload lifecycle: progress / pause / resume / cancel ───────────────────
+  //
+  // Meaningful once a given mediaId's upload has actually started (past the
+  // offline-queue wait) — see OfflineSyncService's class doc.
+
+  /// Live progress for [mediaId]'s upload. Emits until it completes or fails.
+  Stream<UploadProgressData> watchUploadProgress(String mediaId) {
+    _ensureInit();
+    return _uploadService.getUploadProgress(mediaId);
+  }
+
+  /// Pause an in-flight upload. No-op if [mediaId] isn't currently uploading.
+  void pauseUpload(String mediaId) {
+    _ensureInit();
+    _uploadService.pauseUpload(mediaId);
+  }
+
+  /// Resume a paused upload. No-op if [mediaId] isn't currently uploading.
+  void resumeUpload(String mediaId) {
+    _ensureInit();
+    _uploadService.resumeUpload(mediaId);
+  }
+
+  /// Cancel an in-flight upload. No-op if [mediaId] isn't currently uploading.
+  void cancelUpload(String mediaId) {
+    _ensureInit();
+    _uploadService.cancelUpload(mediaId);
+  }
+
+  /// True while [mediaId]'s upload is actively talking to Firebase Storage.
+  bool isUploading(String mediaId) {
+    _ensureInit();
+    return _uploadService.isUploading(mediaId);
+  }
+
   Future<void> clearCache() async {
     _ensureInit();
     await _cacheService.clearAll();
@@ -359,7 +510,10 @@ class CloudMediaProvider {
     return _cacheService.getCacheSize();
   }
 
-  void dispose() {
+  /// Cancels all active [watchMedia] subscriptions, closes their
+  /// controllers, and disposes [_uploadService] and [_cacheService]
+  /// (which closes its underlying Hive box).
+  Future<void> dispose() async {
     for (final sub in _watchSubscriptions.values) {
       sub.cancel();
     }
@@ -369,5 +523,6 @@ class CloudMediaProvider {
     }
     _watchControllers.clear();
     _uploadService.dispose();
+    await _cacheService.dispose();
   }
 }

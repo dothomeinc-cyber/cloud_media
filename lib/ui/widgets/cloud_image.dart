@@ -23,7 +23,16 @@ class CloudImage extends StatelessWidget {
   final bool enableZoom;
   final VoidCallback? onTap;
 
+  /// Which URL to actually load. When [enableZoom] is set — i.e. this is
+  /// a full-screen/pinch-to-zoom view, not a grid thumbnail — the
+  /// thumbnail is deliberately skipped in favor of the full-resolution
+  /// [CloudMediaItem.downloadUrl]: zooming into a low-res thumbnail would
+  /// defeat the point of zooming at all. Non-zoom callers (grids, list
+  /// tiles) keep preferring the thumbnail for bandwidth/decode cost.
   String get _url {
+    if (enableZoom && media.downloadUrl.isNotEmpty) {
+      return media.downloadUrl;
+    }
     if (media.thumbnailUrl.isNotEmpty) {
       return media.thumbnailUrl;
     }
